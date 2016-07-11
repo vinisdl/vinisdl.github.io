@@ -1,11 +1,18 @@
 <header class="site-header">
 
-  <nav><ul>
-      <h1>{% if page.title %}{{ page.title | escape }}{% else %}{{ site.title | escape }}{% endif %}</h1>
-      {% for node in site.posts reversed %}
-        {% capture id %}{{ node.id | split: '/' | last }}{% endcapture %}
-        <li class="p-{{node.style}}"><a href="#{{id}}">{{node.title}}</a></li>
-      {% endfor %}
-    </ul></nav>
+	<nav>
+		<a id="contact" href="#footer-info"> Contato </a>
+		<ul>
+
+			<div>				
+				<h1 style="margin-left: 10%;">{% if page.title %}{{ page.title | escape }}{% else %}{{ site.title | escape }}{% endif %}</h1>     
+				
+			</div> 
+			{% for node in site.posts reversed %}
+				{% capture id %}{{ node.id | split: '/' | last }}{% endcapture %}
+				<li class="p-{{node.style}}"><a href="#{{id}}">{{node.title}}</a></li>
+			{% endfor %}      
+		</ul>
+	</nav>
 
 </header>

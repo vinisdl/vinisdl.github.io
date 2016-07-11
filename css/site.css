@@ -661,7 +661,12 @@ nav ul {
   letter-spacing:-4px;
 }
 
-nav ul li {
+nav ul h1 {
+  color: #f8f8f8;
+
+}
+
+nav ul li {  
   display:inline-block;
   border-top:3px solid;
   padding: 3px;
@@ -670,8 +675,7 @@ nav ul li {
   line-height:normal;
   letter-spacing:normal;
   text-transform:uppercase;
-  min-width:110px;
-  line-height:60px;
+  min-width:110px;  
   margin:0;
 }
 

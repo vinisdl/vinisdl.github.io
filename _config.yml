@@ -1,0 +1,21 @@
+# Welcome to Jekyll!
+#
+# This config file is meant for settings that affect your whole blog, values
+# which you are expected to set up once and rarely need to edit after that.
+# For technical reasons, this file is *NOT* reloaded automatically when you use
+# 'jekyll serve'. If you change this file, please restart the server process.
+
+# Site settings
+title: Marco Dalalba
+email: vinisdl@hotmail.com  
+keywords: "marco dalalba blog pessoal vinisdl dakn"
+description: "Portifólio Marco Vinicius Soares Dalalba"
+baseurl: "" # the subpath of your site, e.g. /blog
+phone: (51) 9663-7341
+url: "http://www.marcodalalba.com" # the base hostname & protocol for your site
+linkedin: vinisdl
+twitter_username: vinisdl
+github_username:  vinisdl
+
+# Build settings
+markdown: kramdown

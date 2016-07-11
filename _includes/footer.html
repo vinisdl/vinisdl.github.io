@@ -1,15 +1,16 @@
 <footer class="site-footer">
 
-  <div class="wrapper">
-
-    <h2 class="footer-heading">{{ site.title }}</h2>
-
+  <div class="wrapper">  
     <div class="footer-col-wrapper">
       <div class="footer-col footer-col-1">
         <ul class="contact-list">
           <li>{{ site.title }}</li>
-          <li><a href="mailto:{{ site.email }}">{{ site.email }}</a></li>
-          <li>Tel:{{ site.phone }}</li>         
+          <li><a href="mailto:{{ site.email }}">
+             <span class="icon icon--mail">{% include envelope.svg %}</span>{{ site.email }}</a></li>
+          <li> <a href="tel:{{ site.phone }}">
+          <span class="icon icon--whatsapp">{% include whatsapp-logo.svg %}</span>
+            {{ site.phone }}</a>
+          </li>          
         </ul>
       </div>
 

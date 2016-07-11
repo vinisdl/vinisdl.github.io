@@ -1,9 +1,9 @@
 Jekyll Single page
 ==================
 
-Live: marcodalalba.com
+[Live](http://marcodalalba.com)
 
-## Objetivo:
+## Why:
 Got some *killer app*, some *neat project*, a cool portfolio? Make an easy single-page site to show it all off. SinglePaged uses jekyll niceties to make a ***polished, modular, and beautiful* single page site**.
 
 -------------------------

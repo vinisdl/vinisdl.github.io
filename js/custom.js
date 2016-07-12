@@ -8,7 +8,7 @@
 $(window).scroll(function(){	
 	
 	if($(window).width() > 767) {
-		if ($(this).scrollTop() > 600) {
+		if ($(this).scrollTop() > 750) {
 			$('.chart').easyPieChart({
 				barColor: '#1ABC9C',
 				trackColor: '#2F4254',

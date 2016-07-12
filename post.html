@@ -1,0 +1,28 @@
+---
+layout: default
+---
+
+<div class="blog-post">
+  <ul class="post-list-blog">
+   {% for page in site.posts reversed %}
+      {% if page.type == 'blog' %} 
+       {% capture id %}{{ page.id | split: '/' | last }}{% endcapture %}
+        <section id="{{id}}" class="section p-{{page.style}}">
+         <div class="row">
+            <div class="col-md-12">
+                <h1>{{ page.title }}</h1>
+              <!--  <a href="{{ page.url }}">{{ page.title }}</a>-->
+            </div>
+        </div>
+          <div class="container p-{{ page.style }}">
+            {{ page.content }}
+          </div>
+          <div id="Posted By" class="blog-info">
+            <span> {{ page.date | date: "%m/%d/%Y" }}</span></br>
+            <span>Criado por {{page.by}}</span>
+          </div>
+        </section>
+      {% endif %}  
+    {% endfor %}
+  </ul>
+</div>

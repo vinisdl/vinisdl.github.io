@@ -9,14 +9,15 @@
 		<div class="collapse navbar-collapse">		
 			<ul class="nav navbar-nav navbar-right animated flipInX">
 				<div>									   				
-				</div> 				
-				
+				</div> 								
 					{% for node in site.posts reversed %}
-						{% capture id %}{{ node.id | split: '/' | last }}{% endcapture %}
-						<li class="p-{{node.style}}"><a href="#{{id}}">{{node.title}}</a></li>
+						{% if node.type != 'blog' %} 
+							{% capture id %}{{ node.id | split: '/' | last }}{% endcapture %}
+							<li class="p-{{node.style}}"><a href="index.html#{{id}}">{{node.title}}</a></li>
+						{% endif %}	
 					{% endfor %}      
-					<li class="p-updating"> <a id="" href="">Posts</a> </li>			
-					<li class="p-why"> <a href="#footer-info">Contato</a> </li>			
+					<li class="p-updating"> <a id="" href="post.html">Posts</a> </li>			
+					<li class="p-why"> <a href="index.html#footer-info">Contato</a> </li>			
 			</ul>
 			</div>
 		</div>

@@ -53,7 +53,7 @@ $(document).ready(function() {
 		$('.carousel-control').fadeOut(300);
 	});
 	
-	$("#skills").click(function(){
+	$("#skills-link").click(function(){
 		$('.chart').easyPieChart({
 				barColor: '#1ABC9C',
 				trackColor: '#2F4254',

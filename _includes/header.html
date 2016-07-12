@@ -13,7 +13,7 @@
 					{% for node in site.posts reversed %}
 						{% if node.type != 'blog' %} 
 							{% capture id %}{{ node.id | split: '/' | last }}{% endcapture %}
-							<li class="p-{{node.style}}"><a href="index.html#{{id}}">{{node.title}}</a></li>
+							<li class="p-{{node.style}}"><a id="{{node.head-id}}" href="index.html#{{id}}">{{node.title}}</a></li>
 						{% endif %}	
 					{% endfor %}      
 					<li class="p-updating"> <a id="" href="post.html">Posts</a> </li>			

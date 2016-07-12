@@ -5,22 +5,22 @@
  * Freelancer theme v1.0
 ------------------------------*/
 
-/*$(window).scroll(function(){
-	if($(window).scrollTop() > 600) {
-		$('.navbar-default').fadeIn(300);
-	}
-	else {
-		$('.navbar-default').fadeOut(300);
-	}
+$(window).scroll(function(){	
 	
 	if($(window).width() > 767) {
 		if ($(this).scrollTop() > 600) {
-			$('.scroll-up').fadeIn(300);
-		} else {
-			$('.scroll-up').fadeOut(300);
+			$('.chart').easyPieChart({
+				barColor: '#1ABC9C',
+				trackColor: '#2F4254',
+				scaleColor: false,
+				lineCap: 'butt',
+				lineWidth: 12,
+				size:110,
+				animate: 2000
+			});    		
 		}		
 	}
-});*/
+});
 
 $(document).ready(function() {	
 
@@ -43,17 +43,7 @@ $(document).ready(function() {
 	$('.overlay-wrapper').mouseleave(function() {
 		$(this).find('.overlay a:first-child').removeClass('animated slideInLeft');
 		$(this).find('.overlay a:last-child').removeClass('animated slideInRight');
-    });
-		
-		$('.chart').easyPieChart({
-			barColor: '#1ABC9C',
-			trackColor: '#2F4254',
-			scaleColor: false,
-			lineCap: 'butt',
-			lineWidth: 12,
-			size:110,
-			animate: 2000
-		});    
+    });			
 
 	$('.carousel').mouseenter(function() {
 		$('.carousel-control').fadeIn(300);
@@ -63,6 +53,19 @@ $(document).ready(function() {
 		$('.carousel-control').fadeOut(300);
 	});
 	
+	$("#skills").click(function(){
+		$('.chart').easyPieChart({
+				barColor: '#1ABC9C',
+				trackColor: '#2F4254',
+				scaleColor: false,
+				lineCap: 'butt',
+				lineWidth: 12,
+				size:110,
+				animate: 2000
+			});    			
+	});
+
+
 	if($(window).width() > 767) {
 		$('.service').mouseenter(function(e) {
 			$(this).find('img').animate({paddingBottom: "15px"},500);

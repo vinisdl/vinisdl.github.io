@@ -18,10 +18,6 @@ body {
 	overflow-x:hidden;
 }
 
-h1 {
-	display:none;
-}
-
 a,
 a:focus,
 a:hover {
@@ -41,6 +37,7 @@ h2 {
 	color:#FFFFFF;
 	font-family:'Montserrat';
 	font-size:56px;
+	text-align: center	
 }
 
 h3 {

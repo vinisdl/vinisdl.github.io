@@ -6,7 +6,7 @@ layout: default
   <ul class="post-list">
    {% for page in site.posts reversed %}
      {% capture id %}{{ page.id | split: '/' | last }}{% endcapture %}
-      <div id="{{id}}" class="section p-{{page.style}}">
+      <section id="{{id}}" class="section p-{{page.style}}">
         {% if page.icon %}
         <div class="subtlecircle sectiondivider imaged">
           <img src="{{page.icon}}" alt="section icon" />
@@ -24,7 +24,7 @@ layout: default
         <div class="container p-{{ page.style }}">
           {{ page.content }}
         </div>
-      </div>
+      </section>
     {% endfor %}
   </ul>
 </div>

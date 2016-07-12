@@ -1,18 +1,25 @@
 <header class="site-header">
 
-	<nav>
-		<a id="contact" href="#footer-info"> Contato </a>
-		<ul>
-
-			<div>				
-				<h1 style="margin-left: 10%;">{% if page.title %}{{ page.title | escape }}{% else %}{{ site.title | escape }}{% endif %}</h1>     
+	<nav class="navbar navbar-default navbar-fixed-top">		
+		<div class="container">
+		<div class="navbar-header">
+		<a href="/" class="navbar-brand animated flipInX">{% if page.title %}{{ page.title | escape }}{% else %}{{ site.title | escape }}{% endif %}</a>
+                   
+        </div>
+		<div class="collapse navbar-collapse">		
+			<ul class="nav navbar-nav navbar-right animated flipInX">
+				<div>									   				
+				</div> 				
 				
-			</div> 
-			{% for node in site.posts reversed %}
-				{% capture id %}{{ node.id | split: '/' | last }}{% endcapture %}
-				<li class="p-{{node.style}}"><a href="#{{id}}">{{node.title}}</a></li>
-			{% endfor %}      
-		</ul>
+					{% for node in site.posts reversed %}
+						{% capture id %}{{ node.id | split: '/' | last }}{% endcapture %}
+						<li class="p-{{node.style}}"><a href="#{{id}}">{{node.title}}</a></li>
+					{% endfor %}      
+					<li class="p-updating"> <a id="" href="">Posts</a> </li>			
+					<li class="p-why"> <a href="#footer-info">Contato</a> </li>			
+			</ul>
+			</div>
+		</div>
 	</nav>
 
 </header>

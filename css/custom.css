@@ -329,7 +329,8 @@ nav ul li:hover, nav ul li.active {
 
 header {
 	text-align:center;
-	background-color:#2F4254;
+    border-radius: 10px;
+	background-color:#49a7e9;
 }
 
 .jumbotron {
@@ -812,6 +813,10 @@ blockquote footer {
 /*------------------------------
 	BLOG
 ------------------------------*/
+.post-list-blog{
+	margin-right: 30px
+}
+
 
 #blog {
 	text-align:center;

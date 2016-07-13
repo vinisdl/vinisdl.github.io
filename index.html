@@ -4,8 +4,7 @@ layout: default
 
 <div class="home">
   <ul class="post-list">
-   {% for page in site.posts reversed %}
-      {% if page.type <> 'blog' %} 
+   {% for page in site.categories.single reversed %}      
        {% capture id %}{{ page.id | split: '/' | last }}{% endcapture %}
         <section id="{{id}}" class="section p-{{page.style}}">
           {% if page.icon %}
@@ -23,10 +22,9 @@ layout: default
           </div>
           {% endif %}
           <div class="container p-{{ page.style }}">
-            {{ page.content }}         
+            {{ page.content }}                    
           </div>
-        </section>
-      {% endif %}
+        </section>      
     {% endfor %}
   </ul>
 </div>

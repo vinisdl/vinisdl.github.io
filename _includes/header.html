@@ -10,14 +10,12 @@
 			<ul class="nav navbar-nav navbar-right animated flipInX">
 				<div>									   				
 				</div> 								
-					{% for node in site.posts reversed %}
-						{% if node.type != 'blog' %} 
-							{% capture id %}{{ node.id | split: '/' | last }}{% endcapture %}
-							<li class="p-{{node.style}}"><a id="{{node.head-id}}" href="index.html#{{id}}">{{node.title}}</a></li>
-						{% endif %}	
-					{% endfor %}      
-					<li class="p-updating"> <a id="" href="post.html">Posts</a> </li>			
-					<li class="p-why"> <a href="index.html#footer-info">Contato</a> </li>			
+				{% for node in site.categories.single reversed %}   					
+					{% capture id %}{{ node.id | split: '/' | last }}{% endcapture %}
+					<li class="p-{{node.style}}"><a id="{{node.head-id}}" href="index.html#{{id}}">{{node.title}}</a></li>						
+				{% endfor %}      
+				<li class="p-updating"> <a id="" href="post.html">Posts</a> </li>			
+				<li class="p-why"> <a href="index.html#footer-info">Contato</a> </li>			
 			</ul>
 			</div>
 		</div>

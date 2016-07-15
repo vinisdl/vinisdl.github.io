@@ -21,14 +21,18 @@
    <!-- ==========================
       JS 
     =========================== -->
-  <script src="js/jquery-2.1.4.js"></script>   
+  <script src="{{ "/js/jquery-2.1.4.js"  | prepend: site.baseurl }}"></script>   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/waypoints/2.0.5/waypoints.min.js"></script>   
-  <script src="js/easyPieChart.js"></script>     
-  <script src="js/bootstrap.min.js"></script>    
+  <script src="{{ "/js/easyPieChart.js"  | prepend: site.baseurl }}"></script>     
+  <script src="{{ "/js/bootstrap.min.js"  | prepend: site.baseurl }}"></script>    
 
-  <script src="plugins/creative-brands/creative-brands.js"></script>    
-  <script src="plugins/modernizr/modernizr.custom.js"></script>
+  <script src="{{ "/plugins/creative-brands/creative-brands.js"  | prepend: site.baseurl }}"></script>
+  <script src="{{ "/plugins/modernizr/modernizr.custom.js"  | prepend: site.baseurl }}"></script>    
+  <script src="{{ "/plugins/waypoints/waypoints.min.js"  | prepend: site.baseurl }}"></script>    
+  <script src="{{ "/js/custom.js"  | prepend: site.baseurl }}"></script>    
+      
+  <!--<script src="plugins/modernizr/modernizr.custom.js"></script>
   <script src="plugins/waypoints/waypoints.min.js"></script>
   <script src="js/custom.js"></script>
-
+  -->
 </html>

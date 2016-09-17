@@ -14,8 +14,8 @@
 					{% capture id %}{{ node.id | split: '/' | last }}{% endcapture %}
 					<li class="p-{{node.style}}"><a id="{{node.head-id}}" href="index.html#{{id}}">{{node.title}}</a></li>						
 				{% endfor %}      
-				<li class="p-updating"> <a id="" href="post.html">Posts</a> </li>			
-				<li class="p-why"> <a href="index.html#footer-info">Contato</a> </li>			
+				<li class="p-updating"> <a id="post" href="post.html">Posts</a> </li>			
+				<li class="p-why"> <a id="info" href="index.html#footer-info">Contato</a> </li>			
 			</ul>
 			</div>
 		</div>

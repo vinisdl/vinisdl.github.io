@@ -5,11 +5,25 @@
  * Freelancer theme v1.0
 ------------------------------*/
 
-$(window).scroll(function(){	
-	
-	if($(window).width() > 767) {
-		if ($(this).scrollTop() > 750) {
-			$('.chart').easyPieChart({
+var root = document.documentElement;
+root.className += ' js';
+
+function boxTop(idBox) {
+	var boxOffset = $(idBox).offset().top;
+	return boxOffset;
+}
+
+$(document).ready(function() {
+	var $target = $('.chart'),
+			animationClass = 'easyPieChart',
+			windowHeight = $(window).height(),
+			offset = windowHeight - (windowHeight / 4);
+
+	function animeScroll() {
+		var documentTop = $(document).scrollTop();
+		$target.each(function() {
+			if (documentTop > boxTop(this) - offset) {
+				$('.chart').easyPieChart({
 				barColor: '#1ABC9C',
 				trackColor: '#2F4254',
 				scaleColor: false,
@@ -17,19 +31,33 @@ $(window).scroll(function(){
 				lineWidth: 12,
 				size:110,
 				animate: 2000
+				
 			});    		
-		}		
-	}	
-});
-
-$(window).load(function(){
-	if(window.location.hash == "#skills"){
-		$("#skills-link").click();
+			}
+		});
 	}
-});
+	animeScroll();
+
+	$(document).scroll(function() {
+		setTimeout(function() {animeScroll()}, 150);
+	});
+});	
 
 
 $(document).ready(function() {	
+
+	$('a[href^="index.html#"]').on('click', function(e) {
+	if(window.location.pathname.indexOf("post") == -1)
+		{
+			e.preventDefault();
+			var id = $(this).attr('href'),
+				targetOffset = $(id.replace("index.html","")).offset().top;
+				
+			$('html, body').animate({ 
+				scrollTop: targetOffset - 10
+			}, 500);
+		}
+});
 
 	$("a.scroll[href^='#']").on('click', function(e) {
 		e.preventDefault();
@@ -58,18 +86,6 @@ $(document).ready(function() {
 	
 	$('.carousel').mouseleave(function() {
 		$('.carousel-control').fadeOut(300);
-	});
-	
-	$("#skills-link").click(function(){
-		$('.chart').easyPieChart({
-				barColor: '#1ABC9C',
-				trackColor: '#2F4254',
-				scaleColor: false,
-				lineCap: 'butt',
-				lineWidth: 12,
-				size:110,
-				animate: 2000
-			});    			
 	});
 
 	if($(window).width() > 767) {

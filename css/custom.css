@@ -503,6 +503,7 @@ header {
 	padding-top: 20px;
 }
 .chart {
+	color: white;
     margin: 20px auto;
 	font-size: 14px;
     font-weight: bold;

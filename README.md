@@ -1,3 +1,5 @@
+[![Code Climate](https://codeclimate.com/github/vinisdl/vinisdl.github.io/badges/gpa.svg)](https://codeclimate.com/github/vinisdl/vinisdl.github.io)
+
 Jekyll Single page
 ==================
 

@@ -17,6 +17,7 @@ url: "http://www.marcodalalba.com" # the base hostname & protocol for your site
 linkedin: vinisdl
 twitter_username: vinisdl
 github_username:  vinisdl
+stack_overflow: marco-vinicius-soares-dalalba
 google_analytics_key: UA-62899678-3 ## put YOUR key here to enable tracking! (blank to disable)
 
 # Build settings

@@ -17,7 +17,9 @@ url: "http://www.marcodalalba.com" # the base hostname & protocol for your site
 linkedin: vinisdl
 twitter_username: vinisdl
 github_username:  vinisdl
-stack_overflow: marco-vinicius-soares-dalalba
+stack_overflow: http://pt.stackoverflow.com/users/59773/marco-vinicius-soares-dalalba
+stack_overflow_theme: http://pt.stackoverflow.com/users/flair/59773.png?theme=clean
+stack_overflow_alt_title: perfil de Marco Vinicius Soares Dalalba em Stack Overflow em Portugu&#234;s, Perguntas e respostas para programadores profissionais e entusiastas
 google_analytics_key: UA-62899678-3 ## put YOUR key here to enable tracking! (blank to disable)
 
 # Build settings

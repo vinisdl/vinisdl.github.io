@@ -1133,13 +1133,131 @@ blockquote footer {
 .section {
 	position:relative;
 	display:block;
-	width:100%;
-	min-height:300px;
-	padding:420px 0;  
+	width: 100%;
+	height: 100vh;
+	/*padding:420px 0;  */
 }			
-.section:first-of-type {
+/*.section:first-of-type {
     padding-top: 140px;
-}
+}*/
+#SPAN_1 {
+	z-index: 10;
+    bottom: 0px;
+    box-sizing: border-box;
+    color: rgb(255, 255, 255);
+    cursor: pointer;
+    display: flex;
+    height: 92px;
+    left: 45%;
+    letter-spacing: 0.56px;
+    position: absolute;
+    right: 0px;
+    text-align: center;
+    text-size-adjust: 100%;
+    text-transform: uppercase;
+    top: 80%;
+    width: 92px;
+    column-rule-color: rgb(255, 255, 255);
+    align-items: center;
+    justify-content: center;
+    perspective-origin: 46px 46px;
+    transform-origin: 46px 46px;
+    border: 0px none rgb(255, 255, 255);
+    font: normal normal normal normal 12px / 13.728px prelo_condensedbook, "Arial Unicode MS";
+    outline: rgb(255, 255, 255) none 0px;
+    padding: 0px 0px 15px;
+    transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1) 0s;
+}/*#SPAN_1*/
+
+#SPAN_1:after {
+    bottom: 0px;
+    box-sizing: border-box;
+    color: rgb(255, 255, 255);
+    content: ' ';
+    cursor: pointer;
+    display: block;
+    height: 92px;
+    left: 0px;
+    letter-spacing: 0.56px;
+    min-height: auto;
+    min-width: auto;
+    position: absolute;
+    right: 0px;
+    text-align: center;
+    text-size-adjust: 100%;
+    text-transform: uppercase;
+    top: 0px;
+    width: 92px;
+    backface-visibility: hidden;
+    column-rule-color: rgb(255, 255, 255);
+    align-self: center;
+    perspective-origin: 46px 46px;
+    transform: matrix(1.15, 0, 0, 1.15, 0, 0);
+    transform-origin: 46px 46px;
+    border: 1px solid rgb(255, 255, 255);
+    border-radius: 50% 50% 50% 50%;
+    font: normal normal normal normal 12px / 13.728px prelo_condensedbook, "Arial Unicode MS";
+    outline: rgb(255, 255, 255) none 0px;
+    transition: transform 0.5s cubic-bezier(0.23, 1, 0.32, 1) 0s, -webkit-transform 0.5s cubic-bezier(0.23, 1, 0.32, 1) 0s;
+}/*#SPAN_1:after*/
+
+#SPAN_1:before {
+    background-position: -62px -62px;
+    bottom: -12.8906px;
+    box-sizing: border-box;
+    color: rgb(255, 255, 255);
+    content: ' ';
+    cursor: pointer;
+    display: block;
+    height: 62px;
+    left: 46px;
+    letter-spacing: 0.56px;
+    min-height: auto;
+    min-width: auto;
+    position: absolute;
+    right: 15px;
+    text-align: center;
+    text-size-adjust: 100%;
+    text-transform: uppercase;
+    top: 52.8906px;
+    width: 62px;
+    column-rule-color: rgb(255, 255, 255);
+    align-self: center;
+    perspective-origin: 31px 31px;
+    transform-origin: 31px 31px;
+    animation: bounce 0.8s linear 0s infinite normal none running;
+    background: rgba(0, 0, 0, 0) url("http://overseas.vacheron-constantin.com/overseas/desktop/dist/assets/images/sprite@2x.png?v=1480581688828") no-repeat scroll -62px -62px / 392px 351px padding-box border-box;
+    border: 0px none rgb(255, 255, 255);
+    font: normal normal normal normal 12px / 13.728px prelo_condensedbook, "Arial Unicode MS";
+    margin: -10px 0px 0px -31px;
+    outline: rgb(255, 255, 255) none 0px;
+    overflow: hidden;
+    transition: margin 0.6s cubic-bezier(0.23, 1, 0.32, 1) 0s;
+}/*#SPAN_1:before*/
+
+#SPAN_2 {
+    box-sizing: border-box;
+    color: rgb(255, 255, 255);
+    cursor: pointer;
+    display: block;
+    height: 26px;
+    letter-spacing: 0.56px;
+    max-width: 92px;
+    min-height: auto;
+    min-width: auto;
+    text-align: center;
+    text-size-adjust: 100%;
+    text-transform: uppercase;
+    width: 92px;
+    column-rule-color: rgb(255, 255, 255);
+    align-self: center;
+    perspective-origin: 46px 13px;
+    transform-origin: 46px 13px;
+    border: 0px none rgb(255, 255, 255);
+    font: normal normal normal normal 12px / 13.728px prelo_condensedbook, "Arial Unicode MS";
+    outline: rgb(255, 255, 255) none 0px;
+}/*#SPAN_2*/
+
 
 /*------------------------------
 	MEDIUM DEVICES
@@ -1543,7 +1661,7 @@ blockquote footer {
 	  display:block;
 	  width:100%;
 	  min-height:300px;
-	  padding:210px 0;  
+	 /* padding:210px 0;  */
 	}
 	.section:first-of-type {
 	    padding-top: 140px;

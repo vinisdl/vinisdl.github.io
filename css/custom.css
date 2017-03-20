@@ -1592,10 +1592,20 @@ blockquote footer {
 	  display:block;
 	  width:100%;
 	  min-height:300px;
-	  padding:210px 0;  
+	 padding: 0 0;  
+	  height: 100%;
+	}
+	.section .p-intro{
+		height: 100vh
 	}
 	.section:first-of-type {
-	    padding-top: 140px;
+	    padding-top: 0px;
+	}
+	.highlight {
+		left:30%;
+	}
+	#SPAN_1{
+		left:35%;
 	}
 }
 

@@ -41,8 +41,21 @@ $(document).ready(function() {
 	$(document).scroll(function() {
 		setTimeout(function() {animeScroll()}, 150);
 	});
+	
 });	
 
+
+$(document).on('keyup',
+
+	Konami.code(
+	    function() {
+	    	
+	        $("#akuma").show();
+	        $("#main").hide();
+	        
+	    })
+
+);
 
 $(document).ready(function() {	
 

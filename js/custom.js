@@ -49,10 +49,17 @@ $(document).on('keyup',
 
 	Konami.code(
 	    function() {
-	    	
 	        $("#akuma").show();
 	        $("#main").hide();
-	        
+	        setTimeout(function(){
+	        	//hack
+	        	var imgsrc = $('#akuma').attr('src');
+				$('#akuma').attr('src', '');
+				$('#akuma').attr('src', imgsrc);
+				
+		        $("#akuma").hide();
+		        $("#main").show();
+	        }, 4000)
 	    })
 
 );

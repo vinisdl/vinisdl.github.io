@@ -28,4 +28,7 @@ Content
 
 ~~~
 
+Run with c9.io
+jekyll serve --host $IP --port $PORT --baseurl ''
+
 **When you publish changes use `git push -u origin master`**

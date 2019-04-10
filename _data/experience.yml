@@ -1,43 +1,43 @@
 - company: KingHost
   link: www.king.host
-  job_title: Senior backend developer
+  job_title: desenvolvedor backend sênior
   dates: Março 2019 - Presente
   description: | # this will include new lines to allow paragraphs
     Desenvolvedor Sênior encaregado de gerar aplicações automatizadas, desenvolvendo, implantando e mantendo sistemas de acordo com metodologia e técnicas adequadas, visando atender aos objetivos estabelecidos quanto a qualidade, custos, prazos e resultados.
 - company: Accera
   link: www.accera.com.br
-  job_title: backend developer
+  job_title: desenvolvedor backend pleno
   dates: Março 2018 - Fevereiro 2019
   description: | # this will include new lines to allow paragraphs
      Desenvolvedor back-end C# com ASP .NET Core, C# 7.2, Nhibernate, servidor SQL, Redis, Mongo, DynamoDB, AWS, lambda AWS, RabbitMQ, Docker.
 - company: DCG
   link: www.dcg.com.br
-  job_title: backend developer
+  job_title: desenvolvedor backend pleno 
   dates: Dezembro 2017 - Fevereiro 2018
   description: | # this will include new lines to allow paragraphs
      Desenvolvedor back-end C# na área de P&D.
 - company: TOTVS
   link: www.totvs.com.br
-  job_title: jr backend developer
+  job_title: desenvolvedor backend jr
   dates: Abril 2017 - Dezembro 2017
   description: | # this will include new lines to allow paragraphs
       Desenvolvimento na área de inovação com c#, asp.net core, asp.net 4.6.  Jira Agile, Oracle, Sql Server, jquery.
 - company: Prismatec
   link: www.prismatec.com.br
-  job_title: jr backend developer
+  job_title: desenvolvedor fullstack jr
   dates: Outubro 2016 - Abril 2017
   description: | # this will include new lines to allow paragraphs
        Desenvolvimento API’s-Rest, e projetos utilizando padrões MVC, DDD, SCRUM. Utilizando tecnologias c#, JS, Google Maps, jquery, bootstrap, postgresql, SVN,  Dapper, Nhibernate.
 - company: M&B Tech
   link: www.mebtech.com.br/
-  job_title: jr backend developer
+  job_title: desenvolvedor fullstack jr
   dates: Agosto 2015 - Setembro 2016
   description: | # this will include new lines to allow paragraphs
       Desenvolvimento de API-Rest, Web Services e Aplicativos WEB. 
       Utilizando tecnologias c#, JS, jquery, SQL server, TFS, bootstrap, Jira Agile, Oracle SQL, Ruby on rails.      
 - company: NTConsult
   link: www.ntconsult.com.br
-  job_title: estagiario backend developer
+  job_title: estagiario de desenvolimento
   dates: Março 2014 - Setembro 2014
   description: | # this will include new lines to allow paragraphs
       Desenvolvimento de aplicativos web, Web Services e Windows Services. 

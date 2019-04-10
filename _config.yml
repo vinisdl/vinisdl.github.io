@@ -31,6 +31,9 @@ about_content: | # this will include new lines to allow paragraphs
 
   Meu currículo completo <a href="https://github.com/vinisdl/resume/raw/master/Marco%20ViniciusSoares%20Dalalba.pdf"> Download </a>
 
+skill_title: Skills
+skill_time: anos
+
 # Projects Section
 projects_title: Projetos
 

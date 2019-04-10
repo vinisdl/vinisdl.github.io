@@ -1,0 +1,59 @@
+# Site
+repository: sproogen/resume-theme
+# favicon: images/favicon.ico
+
+# Personal info
+name: Marco Vinicius Soares Dalalba
+title: Desenvolvedor Backend Sênior
+email: vinisdl@hotmail.com
+website: www.marcodalalba.com
+
+# Social links
+twitter_username: vinisdl
+github_username:  vinisdl
+# dribbble_username: jekyll
+# facebook_username: jekyll
+# flickr_username: jekyll
+instagram_username: vinisdd 
+linkedin_username: vinisdl
+# pinterest_username: jekyll
+#youtube_username: globalmtb
+# googleplus_username: +jekyll
+
+# About Section
+about_title: Sobre Mim
+about_profile_image: images/profile.jpg
+about_content: | # this will include new lines to allow paragraphs
+  Desenvolvedor backend com 5 anos experiência em análise de sistemas e programação, cursando ciências da computação na Unisinos, com conhecimento sólido em aplicações web responsivas e escaláveis na nuvem.
+  
+  Eu sou muito bom em: <mark>C#</mark> e <mark>jogador de CS</mark>
+
+
+  Meu currículo completo <a href="https://github.com/vinisdl/resume/raw/master/Marco%20ViniciusSoares%20Dalalba.pdf"> Download </a>
+
+# Projects Section
+projects_title: Projetos
+
+# Experience Section
+experience_title: Experiência
+
+# Education Section
+education_title: Educação
+
+# More Section
+more_title: Um pouco mais sobre mim
+more_content: | # this will include new lines to allow paragraphs
+  Experiência na arquitetura de projetos escaláveis usando as principais linguagens e tecnologias do mercado, visando a qualidade e manutenibilidade
+
+# Footer
+footer_show_references: true
+
+# Build settings
+remote_theme: sproogen/resume-theme
+
+sass:
+  sass_dir: _sass
+  style: compressed
+
+plugins:
+ - jekyll-seo-tag

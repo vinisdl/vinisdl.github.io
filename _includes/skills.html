@@ -1,0 +1,20 @@
+<div class="container skill-container">
+    <h3>{{ site.skill_title | default: "Skills" }}</h3>
+    {% assign col_length = site.data.skill.length %}
+    {% for skill in site.data.skills %}
+
+        {{ col_length }}
+        {% if forloop.index == col_length %}
+            {% assign class = "col-xs-6 col-sm-12" %}
+        {% endif %}
+    
+        <div class="row clearfix skill {{class}}">
+            <div class="col-xs-12 col-sm-4 col-md-3 col-print-12 left-column">
+                <h4 class="name">
+                {{ skill.Skill }}
+                <b>{{ skill.Time }}</b>
+                </h4>
+            </div>
+        </div>
+    {% endfor %}
+  </div>

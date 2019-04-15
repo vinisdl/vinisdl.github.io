@@ -4,17 +4,17 @@ auto_deploy: false
 admin_path: 
 webhook_url: 
 sections:
-- type: directory
-  path: _layouts
-  label: Layout
-  create: all
-  match: "**"
 - type: document
   path: _config.yml
   label: Config
 - type: directory
   path: _data
   label: Data
+  create: all
+  match: "**"
+- type: directory
+  path: _layouts
+  label: Layout
   create: all
   match: "**"
 - type: jekyll-pages

@@ -5,9 +5,9 @@ admin_path:
 webhook_url: 
 sections:
 - type: document
-  path: "./_config.yml"
+  path: _config.yml
   label: Config
-  match: "**/*"
+  read_only: false
 - type: directory
   path: _data
   label: _data

@@ -7,10 +7,9 @@ sections:
 - type: document
   path: _config.yml
   label: Config
-  read_only: false
 - type: directory
   path: _data
-  label: _data
+  label: Data
   create: all
   match: "**"
 - type: jekyll-pages

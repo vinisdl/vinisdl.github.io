@@ -1,4 +1,11 @@
 ---
+- company: Dell computadores do Brazil
+  link: www.dell.com
+  job_title: Software Engineer 2
+  dates: Agosto 2019 - Setembro 2019
+  description: Desenvolvimento de sistemas utilizando C#, angular 8, sql server, Pivotal
+    Cloud Fundry, NodeJS, RabbitMQo sistema é baseado em web api’s eserviçosutilizando
+    c# e NodeJS, em um sistema de uso globa
 - company: KingHost
   link: www.king.host
   job_title: desenvolvedor backend

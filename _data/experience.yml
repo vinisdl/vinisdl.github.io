@@ -4,13 +4,6 @@
   job_title: Software Engineer SR
   dates: Setembro 2019 - Presente
   description: 'Desenvolvimento de sistemas utilizando C#, dotnet core, azure. '
-- company: Dell computadores do Brazil
-  link: www.dell.com
-  job_title: Software Engineer 2
-  dates: Agosto 2019 - Setembro 2019
-  description: Desenvolvimento de sistemas utilizando C#, angular 8, sql server, Pivotal
-    Cloud Fundry, NodeJS, RabbitMQo sistema é baseado em web api’s eserviçosutilizando
-    c# e NodeJS, em um sistema de uso globa
 - company: KingHost
   link: www.king.host
   job_title: desenvolvedor backend
@@ -27,13 +20,6 @@
   dates: Março 2018 - Fevereiro 2019
   description: 'Desenvolvedor back-end C# com ASP .NET Core, C# 7.2, Nhibernate, servidor
     SQL, Redis, Mongo, DynamoDB, AWS, lambda AWS, RabbitMQ, Docker.
-
-'
-- company: DCG
-  link: www.dcg.com.br
-  job_title: desenvolvedor backend pleno
-  dates: Dezembro 2017 - Fevereiro 2018
-  description: 'Desenvolvedor back-end C# na área de P&D.
 
 '
 - company: TOTVS

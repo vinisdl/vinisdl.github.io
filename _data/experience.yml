@@ -1,9 +1,16 @@
 ---
+- company: DBServer
+  link: www.dbserver.com.br
+  job_title: Software Architect Consultant
+  dates: Junho 2021 - Presente
+  description: 'Consultor de arquitetura de software utilizando aws e azure.'
+  
 - company: Trinca
   link: www.trin.ca
   job_title: Software Engineer SR
-  dates: Setembro 2019 - Presente
+  dates: Setembro 2019 - Junho 2021
   description: 'Desenvolvimento de sistemas utilizando C#, dotnet core, azure. '
+  
 - company: KingHost
   link: www.king.host
   job_title: desenvolvedor backend

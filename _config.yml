@@ -45,7 +45,7 @@ about_title: Sobre mim
 about_profile_image: images/profile.jpg
 about_content: |
   Desenvolvedor backend com 6 anos experiência em análise de sistemas e programação, cursando ciências da computação na Unisinos, com conhecimento sólido em aplicações web responsivas e escaláveis na nuvem.
-  Eu sou muito bom em: <mark>C#</mark> e <mark>jogar CS</mark>
+  Eu sou muito bom em: <mark>C#</mark> e <mark>jogar CS</mark> <br>
   Meu currículo completo <a href="https://github.com/vinisdl/resume/raw/master/Marco%20ViniciusSoares%20Dalalba.pdf"> Download </a>
 content:
   - title: Experiência # Title for the section
@@ -114,7 +114,7 @@ content:
         sub_title: Estagiario de Desenvolimento
         caption: Março 2014 - Setembro 2014
         description: "Desenvolvimento de aplicativos web, Web Services e Windows Services.
-          \nUtilizando técnologias c# mvc 4, jquery, bootstrap, SQL server, TFS, Bootstrap,
+          <br>Utilizando técnologias c# mvc 4, jquery, bootstrap, SQL server, TFS, Bootstrap,
           Scrum. "
     
   - title: Educação # Title for the section

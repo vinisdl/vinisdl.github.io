@@ -7,7 +7,7 @@ version: 2
 
 # Personal info
 name: Marco Vinicius Soares Dalalba
-title: Software Architect Consultant
+title: Software Architect
 email: vinisdl@hotmail.com
 website: www.marcodalalba.com
 
@@ -93,7 +93,7 @@ content:
       '
       - layout: left
         company: Prismatec
-        link: www.prismatec.com.br
+        link: www.prismatec.srv.br
         sub_title: Desenvolvedor Fullstack jr
         caption: Outubro 2016 - Abril 2017
         description: 'Desenvolvimento API’s-Rest, e projetos utilizando padrões MVC, DDD,

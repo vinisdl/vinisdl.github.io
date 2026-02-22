@@ -1,0 +1,113 @@
+# Hugo configuration file
+title: Marco Dall'Alba
+enableEmoji: true
+languageCode: "pt-BR"
+defaultContentLanguage: "pt-br"
+# Ajuste para sua URL em produção (ex: https://marcodallalba.github.io/)
+baseURL: "/"
+
+languages:
+  pt-br:
+    languageName: "Portugues"
+    weight: 1
+
+outputs:
+  home: [HTML, RSS]
+
+# Comentários: preencha shortname quando tiver conta Disqus (deixe vazio para desativar)
+services:
+  disqus:
+    shortname: ""
+
+# import hextra as module
+module:
+  imports:
+    - path: github.com/imfing/hextra
+
+markup:
+  # allow raw html
+  goldmark:
+    renderer:
+      unsafe: true
+
+  # enable hextra syntax highlight
+  highlight:
+    noClasses: false
+
+menu:
+  main:
+    - name: Theme
+      weight: 0
+      params:
+        type: theme-toggle
+    - name: About
+      pageRef: /about
+      weight: 1
+    - name: LinkedIn
+      url: "https://linkedin.com/in/vinisdl"
+      weight: 2
+      params:
+        icon: linkedin
+    - name: GitHub
+      url: "https://github.com/vinisdl"
+      weight: 3
+      params:
+        icon: github
+    - name: Twitter
+      url: "https://x.com/vinisdl"
+      weight: 4
+      params:
+        icon: x-twitter
+    - name: Search
+      weight: 5
+      params:
+        type: search
+    - name: RSS
+      weight: 6
+      url: "/index.xml"
+      params:
+        icon: rss
+  sidebar:
+    - name: LinkedIn
+      weight: 1
+      url: "https://linkedin.com/in/vinisdl"
+      params:
+        icon: linkedin
+    - name: GitHub
+      weight: 2
+      url: "https://github.com/vinisdl"
+      params:
+        icon: github
+    - name: Twitter
+      weight: 3
+      url: "https://x.com/vinisdl"
+      params:
+        icon: x-twitter
+
+params:
+  navbar:
+    displayTitle: true
+    displayLogo: false
+
+  footer:
+    displayCopyright: true
+    displayPoweredBy: true
+
+  editURL:
+    enable: false
+    base: "https://github.com/imfing/hextra-starter-template/edit/main/content"
+
+  # Keep default youtube shortcode as configurable
+  youtubeDefaults:
+    iframeAllowList: "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    referrerpolicy: "no-referrer"
+    iframeStyle: "border:0; width:100%; aspect-ratio:16/9;"
+
+  theme:
+    default: light
+
+  author:
+    name: Marco Dall'Alba
+    email: ""  # preencha com seu e-mail
+
+  description: "Blog de Marco Dall'Alba - Arquiteto Consultor."

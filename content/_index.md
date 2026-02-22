@@ -1,5 +1,5 @@
 ---
-title: Marco Dall'Alba's Blog
+title: Marco Dall'Alba
 ---
 
 ## 2026 - February

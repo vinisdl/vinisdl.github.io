@@ -1,5 +1,6 @@
 ---
 title: "Padrões modernos em SaaS multi-tenant"
+slug: padroes-modernos-saas
 date: 2026-02-24T14:29:42-0300
 draft: false
 description: "Padrões modernos para SaaS multi-tenant: eventos, APIs e integrações (sem perder isolamento)"

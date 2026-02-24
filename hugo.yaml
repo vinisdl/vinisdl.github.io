@@ -18,6 +18,8 @@ outputs:
 services:
   disqus:
     shortname: ""
+  googleAnalytics:
+    ID: G-SBMLX53227
 
 # import hextra as module
 module:

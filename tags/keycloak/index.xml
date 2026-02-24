@@ -1,0 +1,686 @@
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Marco Dall'Alba</title><link>https://vinisdl.github.io/</link><description>Blog de Marco Dall'Alba - Arquiteto Consultor.</description><generator>Hugo -- gohugo.io</generator><language>pt-br</language><lastBuildDate>Tue, 24 Feb 2026 20:51:26 GMT</lastBuildDate><atom:link href="https://vinisdl.github.io/index.xml" rel="self" type="application/rss+xml"/><item><title>Como criar Teams no Agno: Orquestração multi-agente com arquitetura multi-tenant (passo a passo)</title><link>https://vinisdl.github.io/2026/02/24/teams-com-agno/</link><guid isPermaLink="true">https://vinisdl.github.io/2026/02/24/teams-com-agno/</guid><pubDate>Tue, 24 Feb 2026 17:28:45 GMT</pubDate><description>&lt;p&gt;No Agno, &amp;ldquo;Team&amp;rdquo; é um grupo de agentes com papéis definidos e um fluxo que decide quem faz o quê. Quando você coloca um orchestrator na frente e pensa em multi-tenant (vários clientes no mesmo sistema, com isolamento de dados), o desenho fica mais claro. Este post é um rascunho aplicável: convenções e passo a passo com código para você adaptar.&lt;/p&gt;
+&lt;p&gt;Referências usadas como base para o padrão de arquitetura:&lt;/p&gt;</description><content:encoded><![CDATA[<p>No Agno, &ldquo;Team&rdquo; é um grupo de agentes com papéis definidos e um fluxo que decide quem faz o quê. Quando você coloca um orchestrator na frente e pensa em multi-tenant (vários clientes no mesmo sistema, com isolamento de dados), o desenho fica mais claro. Este post é um rascunho aplicável: convenções e passo a passo com código para você adaptar.</p>
+<p>Referências usadas como base para o padrão de arquitetura:</p>
+<ul>
+<li>Repo: <a href="https://github.com/vinisdl/agent-orchestrator-mult-tenant"target="_blank" rel="noopener">agent-orchestrator-mult-tenant</a></li>
+<li>Post: <a href="https://vinisdl.github.io/2026/02/23/agno-agent-ui-self-hosted-rag/"target="_blank" rel="noopener">Agno Agent UI self-hosted + RAG</a></li>
+</ul>
+<hr>
+<h2>Pré-requisitos<span class="hx:absolute hx:-mt-20" id="pré-requisitos"></span>
+    <a href="#pr%c3%a9-requisitos" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><ul>
+<li>Python 3.10+ (de preferência 3.11+)</li>
+<li>Agno instalado no projeto</li>
+<li>Docker + Docker Compose (opcional, para Postgres e serviços locais)</li>
+<li>Chave de LLM (OpenAI, Anthropic ou setup self-hosted)</li>
+<li>Postgres (recomendado para sessões, logs e histórico por tenant)</li>
+<li>Noções de multi-tenant (<code>tenant_id</code>, isolamento por schema ou coluna) e de observabilidade (logs estruturados e traces)</li>
+</ul>
+<hr>
+<h2>Arquitetura: orchestrator + multi-tenant<span class="hx:absolute hx:-mt-20" id="arquitetura-orchestrator--multi-tenant"></span>
+    <a href="#arquitetura-orchestrator--multi-tenant" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><h3>Visão geral<span class="hx:absolute hx:-mt-20" id="visão-geral"></span>
+    <a href="#vis%c3%a3o-geral" class="subheading-anchor" aria-label="Permalink for this section"></a></h3><ol>
+<li><strong>API/Backend</strong> — Recebe a requisição do usuário (com <code>tenant_id</code>).</li>
+<li><strong>Orchestrator</strong> — Valida o tenant, carrega a config do tenant (modelos, limites, ferramentas, base de conhecimento), escolhe ou monta um Team e roteia a tarefa para o membro certo.</li>
+<li><strong>Team (Agno)</strong> — Colaboração entre agentes (sequencial ou com delegação de subtarefas) e uso de ferramentas (RAG, web, DB, fila, integrações).</li>
+<li><strong>Storage e observabilidade</strong> — Persistência por tenant (sessões, memória, histórico); logs e traces com <code>tenant_id</code>, <code>team_id</code>, <code>run_id</code>.</li>
+</ol>
+<h3>Multi-tenant na prática<span class="hx:absolute hx:-mt-20" id="multi-tenant-na-prática"></span>
+    <a href="#multi-tenant-na-pr%c3%a1tica" class="subheading-anchor" aria-label="Permalink for this section"></a></h3><p>Propague <code>tenant_id</code> em tudo: storage/sessões, índices e bases de conhecimento, logs/traces e chaves de cache. Mantenha a config por tenant numa tabela ou arquivo (modelo, temperatura, tools habilitadas, rate limits, base de conhecimento). Para isolamento: no mínimo uma coluna <code>tenant_id</code> nas tabelas; se fizer sentido, schema por tenant.</p>
+<hr>
+<h2>Passo a passo: criando um Team no Agno<span class="hx:absolute hx:-mt-20" id="passo-a-passo-criando-um-team-no-agno"></span>
+    <a href="#passo-a-passo-criando-um-team-no-agno" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><h3>1. Contrato de entrada e saída do orchestrator<span class="hx:absolute hx:-mt-20" id="1-contrato-de-entrada-e-saída-do-orchestrator"></span>
+    <a href="#1-contrato-de-entrada-e-sa%c3%adda-do-orchestrator" class="subheading-anchor" aria-label="Permalink for this section"></a></h3><p>Defina uma entrada mínima e uma saída padronizada para não criar acoplamento invisível quando plugar UI, filas ou webhooks.</p>
+<p><strong>Entrada:</strong></p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nd">@dataclass</span>
+</span></span><span class="line"><span class="cl"><span class="k">class</span> <span class="nc">OrchestratorRequest</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="n">tenant_id</span><span class="p">:</span> <span class="nb">str</span>
+</span></span><span class="line"><span class="cl">    <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span>
+</span></span><span class="line"><span class="cl">    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span>
+</span></span><span class="line"><span class="cl">    <span class="n">conversation_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></span><span class="line"><span class="cl">    <span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<p><strong>Saída:</strong></p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="nd">@dataclass</span>
+</span></span><span class="line"><span class="cl"><span class="k">class</span> <span class="nc">OrchestratorResponse</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="n">run_id</span><span class="p">:</span> <span class="nb">str</span>
+</span></span><span class="line"><span class="cl">    <span class="n">team_id</span><span class="p">:</span> <span class="nb">str</span>
+</span></span><span class="line"><span class="cl">    <span class="n">final_answer</span><span class="p">:</span> <span class="nb">str</span>
+</span></span><span class="line"><span class="cl">    <span class="n">traces_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<h3>2. Roles do Team<span class="hx:absolute hx:-mt-20" id="2-roles-do-team"></span>
+    <a href="#2-roles-do-team" class="subheading-anchor" aria-label="Permalink for this section"></a></h3><p>Cada membro com uma responsabilidade. Exemplo de roles comuns:</p>
+<ul>
+<li><strong>Router / Orchestrator</strong> — Entende a intenção e distribui a tarefa.</li>
+<li><strong>RAG Researcher</strong> — Busca na base de conhecimento do tenant.</li>
+<li><strong>Writer</strong> — Monta a resposta final no tom da marca.</li>
+<li><strong>Tool Runner</strong> — Chama integrações (CRM, tickets, DB, etc.).</li>
+</ul>
+<h3>3. Agentes (membros) com instruções claras<span class="hx:absolute hx:-mt-20" id="3-agentes-membros-com-instruções-claras"></span>
+    <a href="#3-agentes-membros-com-instru%c3%a7%c3%b5es-claras" class="subheading-anchor" aria-label="Permalink for this section"></a></h3><p>Instrução curta demais em Team vira cada agente &ldquo;por si&rdquo;. Vale ser explícito.</p>
+<p>Exemplo conceitual:</p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="k">def</span> <span class="nf">make_research_agent</span><span class="p">(</span><span class="n">tenant_cfg</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">Agent</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">name</span><span class="o">=</span><span class="s2">&#34;researcher&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">instructions</span><span class="o">=</span><span class="p">[</span>
+</span></span><span class="line"><span class="cl">            <span class="s2">&#34;Você busca informações na base de conhecimento do tenant.&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="s2">&#34;Cite a fonte ou o trecho quando possível.&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="s2">&#34;Se não achar, diga que não encontrou e sugira próximos passos.&#34;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">],</span>
+</span></span><span class="line"><span class="cl">        <span class="n">model</span><span class="o">=</span><span class="n">tenant_cfg</span><span class="o">.</span><span class="n">model</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">tenant_cfg</span><span class="o">.</span><span class="n">knowledge_tool</span><span class="p">],</span>
+</span></span><span class="line"><span class="cl">    <span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">def</span> <span class="nf">make_writer_agent</span><span class="p">(</span><span class="n">tenant_cfg</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">Agent</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">name</span><span class="o">=</span><span class="s2">&#34;writer&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">instructions</span><span class="o">=</span><span class="p">[</span>
+</span></span><span class="line"><span class="cl">            <span class="s2">&#34;Escreva a resposta final em PT-BR, objetiva, com exemplos.&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="s2">&#34;Não invente detalhes. Se faltar dado, peça o mínimo para seguir.&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="s2">&#34;Use um tom prático, sem linguagem inflada.&#34;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">],</span>
+</span></span><span class="line"><span class="cl">        <span class="n">model</span><span class="o">=</span><span class="n">tenant_cfg</span><span class="o">.</span><span class="n">model</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">)</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<h3>4. Montar o Team<span class="hx:absolute hx:-mt-20" id="4-montar-o-team"></span>
+    <a href="#4-montar-o-team" class="subheading-anchor" aria-label="Permalink for this section"></a></h3><div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="k">def</span> <span class="nf">build_team_for_tenant</span><span class="p">(</span><span class="n">tenant_cfg</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">    <span class="n">researcher</span> <span class="o">=</span> <span class="n">make_research_agent</span><span class="p">(</span><span class="n">tenant_cfg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="n">writer</span> <span class="o">=</span> <span class="n">make_writer_agent</span><span class="p">(</span><span class="n">tenant_cfg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">Team</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&#34;support-team-</span><span class="si">{</span><span class="n">tenant_cfg</span><span class="o">.</span><span class="n">tenant_id</span><span class="si">}</span><span class="s2">&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">members</span><span class="o">=</span><span class="p">[</span><span class="n">researcher</span><span class="p">,</span> <span class="n">writer</span><span class="p">],</span>
+</span></span><span class="line"><span class="cl">        <span class="n">instructions</span><span class="o">=</span><span class="p">[</span>
+</span></span><span class="line"><span class="cl">            <span class="s2">&#34;Trabalhem em conjunto: primeiro busquem e confirmem fatos, depois respondam.&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="s2">&#34;Mantenham a resposta final curta e acionável.&#34;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">],</span>
+</span></span><span class="line"><span class="cl">    <span class="p">)</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<h3>5. Roteamento de tarefas<span class="hx:absolute hx:-mt-20" id="5-roteamento-de-tarefas"></span>
+    <a href="#5-roteamento-de-tarefas" class="subheading-anchor" aria-label="Permalink for this section"></a></h3><p>Duas opções: roteamento fixo no código (simples e barato no começo) ou um agente &ldquo;router&rdquo; que classifica a intenção (mais flexível, mas exige validação de saída).</p>
+<p><strong>Opção A — Roteamento hard-coded</strong></p>
+<p>Bom para MVP e para controlar custo.</p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="k">def</span> <span class="nf">route</span><span class="p">(</span><span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="n">msg</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="s2">&#34;documentação&#34;</span> <span class="ow">in</span> <span class="n">msg</span> <span class="ow">or</span> <span class="s2">&#34;como&#34;</span> <span class="ow">in</span> <span class="n">msg</span> <span class="ow">or</span> <span class="s2">&#34;guia&#34;</span> <span class="ow">in</span> <span class="n">msg</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="s2">&#34;research_then_write&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="s2">&#34;erro&#34;</span> <span class="ow">in</span> <span class="n">msg</span> <span class="ow">or</span> <span class="s2">&#34;bug&#34;</span> <span class="ow">in</span> <span class="n">msg</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="s2">&#34;write_only&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="s2">&#34;research_then_write&#34;</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<p>Rotas típicas:</p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="n">ROUTES</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;research_then_write&#34;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&#34;researcher&#34;</span><span class="p">,</span> <span class="s2">&#34;writer&#34;</span><span class="p">],</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;write_only&#34;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&#34;writer&#34;</span><span class="p">],</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<p>Execução (conceitual):</p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="k">def</span> <span class="nf">run_team</span><span class="p">(</span><span class="n">team</span><span class="p">,</span> <span class="n">route_name</span><span class="p">,</span> <span class="n">user_message</span><span class="p">):</span>
+</span></span><span class="line"><span class="cl">    <span class="n">context</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&#34;user_message&#34;</span><span class="p">:</span> <span class="n">user_message</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="n">member_name</span> <span class="ow">in</span> <span class="n">ROUTES</span><span class="p">[</span><span class="n">route_name</span><span class="p">]:</span>
+</span></span><span class="line"><span class="cl">        <span class="n">agent</span> <span class="o">=</span> <span class="n">team</span><span class="o">.</span><span class="n">get_member</span><span class="p">(</span><span class="n">member_name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="n">result</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="n">context</span><span class="p">[</span><span class="n">member_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">context</span><span class="p">[</span><span class="s2">&#34;writer&#34;</span><span class="p">]</span><span class="o">.</span><span class="n">final</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<p><strong>Opção B — Router agent</strong></p>
+<p>Um agente classifica a intenção e devolve um plano (ex.: JSON). Valide a saída (ex.: JSON schema) e tenha um fallback.</p>
+<h3>6. Escalar membros e roles (multi-tenant)<span class="hx:absolute hx:-mt-20" id="6-escalar-membros-e-roles-multi-tenant"></span>
+    <a href="#6-escalar-membros-e-roles-multi-tenant" class="subheading-anchor" aria-label="Permalink for this section"></a></h3><p>Mantenha um catálogo de teams; cada tenant escolhe um template.</p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="n">TEAM_TEMPLATES</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;default_support&#34;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&#34;researcher&#34;</span><span class="p">,</span> <span class="s2">&#34;writer&#34;</span><span class="p">],</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;sales_assistant&#34;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&#34;product_specialist&#34;</span><span class="p">,</span> <span class="s2">&#34;writer&#34;</span><span class="p">],</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;triage&#34;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&#34;router&#34;</span><span class="p">,</span> <span class="s2">&#34;researcher&#34;</span><span class="p">,</span> <span class="s2">&#34;writer&#34;</span><span class="p">],</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<p>No config do tenant:</p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;tenant_id&#34;</span><span class="p">:</span> <span class="s2">&#34;acme&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;team_template&#34;</span><span class="p">:</span> <span class="s2">&#34;triage&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;model&#34;</span><span class="p">:</span> <span class="s2">&#34;gpt-4.1-mini&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;knowledge_base&#34;</span><span class="p">:</span> <span class="s2">&#34;kb_acme&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<hr>
+<h2>Observabilidade (logs, traces e métricas)<span class="hx:absolute hx:-mt-20" id="observabilidade-logs-traces-e-métricas"></span>
+    <a href="#observabilidade-logs-traces-e-m%c3%a9tricas" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><p>Desde o dia 1, inclua: <code>tenant_id</code>, <code>team_id</code>, <code>run_id</code>, <code>conversation_id</code>, tempo total, tokens/custo por membro (se tiver) e a rota escolhida.</p>
+<p>Exemplo de log estruturado:</p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&#34;team_run_started&#34;</span><span class="p">,</span> <span class="n">extra</span><span class="o">=</span><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;tenant_id&#34;</span><span class="p">:</span> <span class="n">req</span><span class="o">.</span><span class="n">tenant_id</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;team_id&#34;</span><span class="p">:</span> <span class="n">team</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;run_id&#34;</span><span class="p">:</span> <span class="n">run_id</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;route&#34;</span><span class="p">:</span> <span class="n">route_name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"><span class="p">})</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<p>Se usar OpenTelemetry, crie spans por etapa (orchestrator, team.run, cada agente) e injete <code>tenant_id</code> como atributo do span.</p>
+<hr>
+<h2>Deploy local (Docker Compose)<span class="hx:absolute hx:-mt-20" id="deploy-local-docker-compose"></span>
+    <a href="#deploy-local-docker-compose" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><p>Setup mínimo para dev: API (FastAPI/Flask), Postgres e, opcionalmente, Grafana/Tempo/Loki (ou outro stack de observabilidade).</p>
+<p>Exemplo de <code>docker-compose.yml</code>:</p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">services</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">postgres</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l">postgres:16</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">POSTGRES_PASSWORD</span><span class="p">:</span><span class="w"> </span><span class="l">postgres</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">POSTGRES_USER</span><span class="p">:</span><span class="w"> </span><span class="l">postgres</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">POSTGRES_DB</span><span class="p">:</span><span class="w"> </span><span class="l">agno</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="s2">&#34;5432:5432&#34;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">api</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l">.</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">DATABASE_URL</span><span class="p">:</span><span class="w"> </span><span class="l">postgresql+psycopg://postgres:postgres@postgres:5432/agno</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">ports</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="s2">&#34;8000:8000&#34;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="l">postgres</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<hr>
+<h2>Dicas práticas<span class="hx:absolute hx:-mt-20" id="dicas-práticas"></span>
+    <a href="#dicas-pr%c3%a1ticas" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><ul>
+<li>Não deixe o Team decidir tudo sozinho. Comece com roteamento simples e aumente a autonomia aos poucos.</li>
+<li>Trate a config do tenant como parte do produto: versione, logue mudanças e tenha defaults.</li>
+<li>Defina budgets por tenant (limite de tokens/custo e timeout).</li>
+<li>Separe bem: orchestrator cuida de autenticação, tenant, roteamento e auditoria; o Team/Agno cuida da execução e das ferramentas.</li>
+<li>Falha controlada: se a base não responder, o agente deve dizer &ldquo;não encontrei&rdquo; em vez de inventar.</li>
+<li>Cache por tenant: embeddings, respostas frequentes, tools que chamam APIs externas.</li>
+</ul>
+]]></content:encoded><category>agno</category><category>multi-tenant</category><category>agents</category></item><item><title>Padrões modernos em SaaS multi-tenant</title><link>https://vinisdl.github.io/2026/02/24/padroes-modernos-saas/</link><guid isPermaLink="true">https://vinisdl.github.io/2026/02/24/padroes-modernos-saas/</guid><pubDate>Tue, 24 Feb 2026 14:29:42 GMT</pubDate><description>&lt;h2&gt;Padrões modernos para SaaS multi-tenant: eventos, APIs e integrações (sem perder isolamento)&lt;span class="hx:absolute hx:-mt-20" id="padrões-modernos-para-saas-multi-tenant-eventos-apis-e-integrações-sem-perder-isolamento"&gt;&lt;/span&gt;
+&lt;a href="#padr%c3%b5es-modernos-para-saas-multi-tenant-eventos-apis-e-integra%c3%a7%c3%b5es-sem-perder-isolamento" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;h2&gt;Quando seu SaaS vira multi-tenant de verdade, a complexidade não está só no banco: ela explode nas fronteiras do sistema — &lt;strong&gt;eventos, APIs e integrações&lt;/strong&gt;. Alguns padrões ajudam a escalar sem comprometer &lt;strong&gt;isolamento&lt;/strong&gt;, &lt;strong&gt;segurança&lt;/strong&gt; e &lt;strong&gt;observabilidade&lt;/strong&gt;.&lt;span class="hx:absolute hx:-mt-20" id="quando-seu-saas-vira-multi-tenant-de-verdade-a-complexidade-não-está-só-no-banco-ela-explode-nas-fronteiras-do-sistema--eventos-apis-e-integrações-alguns-padrões-ajudam-a-escalar-sem-comprometer-isolamento-segurança-e-observabilidade"&gt;&lt;/span&gt;
+&lt;a href="#quando-seu-saas-vira-multi-tenant-de-verdade-a-complexidade-n%c3%a3o-est%c3%a1-s%c3%b3-no-banco-ela-explode-nas-fronteiras-do-sistema--eventos-apis-e-integra%c3%a7%c3%b5es-alguns-padr%c3%b5es-ajudam-a-escalar-sem-comprometer-isolamento-seguran%c3%a7a-e-observabilidade" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;h3&gt;1) Eventos sempre “tenant-aware”&lt;span class="hx:absolute hx:-mt-20" id="1-eventos-sempre-tenant-aware"&gt;&lt;/span&gt;
+&lt;a href="#1-eventos-sempre-tenant-aware" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;Em arquitetura orientada a eventos, todo evento precisa carregar o contexto do tenant (ex.: &lt;code&gt;tenantId&lt;/code&gt;, &lt;code&gt;environment&lt;/code&gt;, &lt;code&gt;correlationId&lt;/code&gt;).&lt;/p&gt;</description><content:encoded><![CDATA[<h2>Padrões modernos para SaaS multi-tenant: eventos, APIs e integrações (sem perder isolamento)<span class="hx:absolute hx:-mt-20" id="padrões-modernos-para-saas-multi-tenant-eventos-apis-e-integrações-sem-perder-isolamento"></span>
+    <a href="#padr%c3%b5es-modernos-para-saas-multi-tenant-eventos-apis-e-integra%c3%a7%c3%b5es-sem-perder-isolamento" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><h2>Quando seu SaaS vira multi-tenant de verdade, a complexidade não está só no banco: ela explode nas fronteiras do sistema — <strong>eventos, APIs e integrações</strong>. Alguns padrões ajudam a escalar sem comprometer <strong>isolamento</strong>, <strong>segurança</strong> e <strong>observabilidade</strong>.<span class="hx:absolute hx:-mt-20" id="quando-seu-saas-vira-multi-tenant-de-verdade-a-complexidade-não-está-só-no-banco-ela-explode-nas-fronteiras-do-sistema--eventos-apis-e-integrações-alguns-padrões-ajudam-a-escalar-sem-comprometer-isolamento-segurança-e-observabilidade"></span>
+    <a href="#quando-seu-saas-vira-multi-tenant-de-verdade-a-complexidade-n%c3%a3o-est%c3%a1-s%c3%b3-no-banco-ela-explode-nas-fronteiras-do-sistema--eventos-apis-e-integra%c3%a7%c3%b5es-alguns-padr%c3%b5es-ajudam-a-escalar-sem-comprometer-isolamento-seguran%c3%a7a-e-observabilidade" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><h3>1) Eventos sempre “tenant-aware”<span class="hx:absolute hx:-mt-20" id="1-eventos-sempre-tenant-aware"></span>
+    <a href="#1-eventos-sempre-tenant-aware" class="subheading-anchor" aria-label="Permalink for this section"></a></h3><p>Em arquitetura orientada a eventos, todo evento precisa carregar o contexto do tenant (ex.: <code>tenantId</code>, <code>environment</code>, <code>correlationId</code>).</p>
+<ul>
+<li>Evita consumidores “adivinharem” o tenant</li>
+<li>Habilita métricas/alertas por tenant</li>
+<li>Simplifica troubleshooting<br>
+<strong>Regra prática:</strong> se um evento pode ser processado sem <code>tenantId</code>, você provavelmente está criando risco de vazamento de dados.</li>
+</ul>
+<p><strong>Exemplo (C# 10): envelope mínimo</strong></p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">record</span> <span class="nc">Event</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;(</span><span class="kt">string</span> <span class="n">TenantId</span><span class="p">,</span> <span class="kt">string</span> <span class="n">Type</span><span class="p">,</span> <span class="kt">string</span> <span class="n">CorrelationId</span><span class="p">,</span> <span class="n">T</span> <span class="n">Data</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">record</span> <span class="nc">UserCreated</span><span class="p">(</span><span class="kt">string</span> <span class="n">UserId</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="kt">var</span> <span class="n">evt</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Event</span><span class="p">&lt;</span><span class="n">UserCreated</span><span class="p">&gt;(</span>
+</span></span><span class="line"><span class="cl">    <span class="n">TenantId</span><span class="p">:</span> <span class="n">tenantId</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Type</span><span class="p">:</span> <span class="s">&#34;users.created&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">CorrelationId</span><span class="p">:</span> <span class="n">corrId</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">Data</span><span class="p">:</span> <span class="k">new</span> <span class="n">UserCreated</span><span class="p">(</span><span class="s">&#34;u123&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">);</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<hr>
+<h3>2) Outbox Pattern + idempotência<span class="hx:absolute hx:-mt-20" id="2-outbox-pattern--idempotência"></span>
+    <a href="#2-outbox-pattern--idempot%c3%aancia" class="subheading-anchor" aria-label="Permalink for this section"></a></h3><p>Integrações falham. Reprocessamentos acontecem. Por isso:</p>
+<ul>
+<li><strong>Outbox Pattern:</strong> grave “mudança de estado” + “evento a publicar” na mesma transação.</li>
+<li><strong>Idempotência:</strong> consumidores e endpoints devem aceitar reentrega sem duplicar efeitos.<br>
+<strong>Dica:</strong> use uma chave idempotente por tenant (<code>tenantId + idempotencyKey</code>) para evitar colisão entre clientes.</li>
+</ul>
+<p><strong>Exemplo (C# 10): Outbox em 3 linhas</strong></p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">db</span><span class="p">.</span><span class="n">Outbox</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="k">new</span> <span class="n">Outbox</span> <span class="p">{</span> <span class="n">TenantId</span> <span class="p">=</span> <span class="n">tenantId</span><span class="p">,</span> <span class="n">Type</span> <span class="p">=</span> <span class="s">&#34;users.created&#34;</span><span class="p">,</span> <span class="n">Payload</span> <span class="p">=</span> <span class="n">json</span> <span class="p">});</span>
+</span></span><span class="line"><span class="cl"><span class="k">await</span> <span class="n">db</span><span class="p">.</span><span class="n">SaveChangesAsync</span><span class="p">();</span> <span class="c1">// mesmo commit da mudança do domínio</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// um worker publica depois e marca PublishedAt</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<p><strong>Exemplo (C# 10): consumo idempotente por tenant</strong></p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="k">await</span> <span class="n">db</span><span class="p">.</span><span class="n">Processed</span><span class="p">.</span><span class="n">AnyAsync</span><span class="p">(</span><span class="n">x</span> <span class="p">=&gt;</span> <span class="n">x</span><span class="p">.</span><span class="n">TenantId</span> <span class="p">==</span> <span class="n">e</span><span class="p">.</span><span class="n">TenantId</span> <span class="p">&amp;&amp;</span> <span class="n">x</span><span class="p">.</span><span class="n">EventId</span> <span class="p">==</span> <span class="n">e</span><span class="p">.</span><span class="n">EventId</span><span class="p">))</span> <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">await</span> <span class="n">HandleBusinessAsync</span><span class="p">(</span><span class="n">e</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="n">db</span><span class="p">.</span><span class="n">Processed</span><span class="p">.</span><span class="n">Add</span><span class="p">(</span><span class="k">new</span><span class="p">()</span> <span class="p">{</span> <span class="n">TenantId</span> <span class="p">=</span> <span class="n">e</span><span class="p">.</span><span class="n">TenantId</span><span class="p">,</span> <span class="n">EventId</span> <span class="p">=</span> <span class="n">e</span><span class="p">.</span><span class="n">EventId</span> <span class="p">});</span>
+</span></span><span class="line"><span class="cl"><span class="k">await</span> <span class="n">db</span><span class="p">.</span><span class="n">SaveChangesAsync</span><span class="p">();</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<hr>
+<h3>3) Webhooks por tenant com governança<span class="hx:absolute hx:-mt-20" id="3-webhooks-por-tenant-com-governança"></span>
+    <a href="#3-webhooks-por-tenant-com-governan%c3%a7a" class="subheading-anchor" aria-label="Permalink for this section"></a></h3><p>Webhooks viram rapidamente uma plataforma dentro da plataforma. Padrões mínimos:</p>
+<ul>
+<li>Assinatura (HMAC) por tenant</li>
+<li>Retry com backoff + DLQ (dead-letter queue)</li>
+<li>Rate limit por tenant</li>
+<li>Versão de payload (ex.: <code>eventVersion</code>) para evoluir sem quebrar clientes</li>
+</ul>
+<p><strong>Exemplo (C# 10): assinatura HMAC do payload</strong></p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">static</span> <span class="kt">string</span> <span class="n">Sign</span><span class="p">(</span><span class="kt">string</span> <span class="n">secret</span><span class="p">,</span> <span class="kt">string</span> <span class="n">payload</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">using</span> <span class="nn">var</span> <span class="n">h</span> <span class="p">=</span> <span class="k">new</span> <span class="n">System</span><span class="p">.</span><span class="n">Security</span><span class="p">.</span><span class="n">Cryptography</span><span class="p">.</span><span class="n">HMACSHA256</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">System</span><span class="p">.</span><span class="n">Text</span><span class="p">.</span><span class="n">Encoding</span><span class="p">.</span><span class="n">UTF8</span><span class="p">.</span><span class="n">GetBytes</span><span class="p">(</span><span class="n">secret</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">Convert</span><span class="p">.</span><span class="n">ToHexString</span><span class="p">(</span><span class="n">h</span><span class="p">.</span><span class="n">ComputeHash</span><span class="p">(</span><span class="n">System</span><span class="p">.</span><span class="n">Text</span><span class="p">.</span><span class="n">Encoding</span><span class="p">.</span><span class="n">UTF8</span><span class="p">.</span><span class="n">GetBytes</span><span class="p">(</span><span class="n">payload</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">ToLowerInvariant</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// uso: request.Headers.Add(&#34;X-Signature&#34;, Sign(secret, payload));</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<hr>
+<h3>4) API multi-tenant: o “contrato” do isolamento<span class="hx:absolute hx:-mt-20" id="4-api-multi-tenant-o-contrato-do-isolamento"></span>
+    <a href="#4-api-multi-tenant-o-contrato-do-isolamento" class="subheading-anchor" aria-label="Permalink for this section"></a></h3><p>Defina explicitamente como o tenant é resolvido:</p>
+<ul>
+<li>Via JWT claim (<code>tenant_id</code>)</li>
+<li>Via subdomínio (<code>tenant.suaapp.com</code>)</li>
+<li>Via header (mais simples, mas exige disciplina)<br>
+O importante é ser <strong>consistente</strong>, e garantir que a autorização usa o tenant resolvido (não o que vem no body/query).</li>
+</ul>
+<p><strong>Exemplo (C# 10): resolver tenant no início do request</strong></p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">app</span><span class="p">.</span><span class="n">Use</span><span class="p">(</span><span class="kd">async</span> <span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">next</span><span class="p">)</span> <span class="p">=&gt;</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">var</span> <span class="n">tenantId</span> <span class="p">=</span> <span class="n">ctx</span><span class="p">.</span><span class="n">User</span><span class="p">.</span><span class="n">FindFirst</span><span class="p">(</span><span class="s">&#34;tenant_id&#34;</span><span class="p">)?.</span><span class="n">Value</span>
+</span></span><span class="line"><span class="cl">        <span class="p">??</span> <span class="n">ctx</span><span class="p">.</span><span class="n">Request</span><span class="p">.</span><span class="n">Headers</span><span class="p">[</span><span class="s">&#34;X-Tenant-Id&#34;</span><span class="p">].</span><span class="n">ToString</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="kt">string</span><span class="p">.</span><span class="n">IsNullOrWhiteSpace</span><span class="p">(</span><span class="n">tenantId</span><span class="p">))</span> <span class="p">{</span> <span class="n">ctx</span><span class="p">.</span><span class="n">Response</span><span class="p">.</span><span class="n">StatusCode</span> <span class="p">=</span> <span class="m">401</span><span class="p">;</span> <span class="k">return</span><span class="p">;</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="n">ctx</span><span class="p">.</span><span class="n">Items</span><span class="p">[</span><span class="s">&#34;tenantId&#34;</span><span class="p">]</span> <span class="p">=</span> <span class="n">tenantId</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">await</span> <span class="n">next</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="p">});</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<hr>
+<h3>5) OAuth e credenciais “por cliente”<span class="hx:absolute hx:-mt-20" id="5-oauth-e-credenciais-por-cliente"></span>
+    <a href="#5-oauth-e-credenciais-por-cliente" class="subheading-anchor" aria-label="Permalink for this section"></a></h3><p>Em integrações (Google/Microsoft/CRM/Payments), é comum cada tenant ter suas próprias credenciais. Padrões recomendados:</p>
+<ul>
+<li>Guardar tokens com envelope encryption/KMS</li>
+<li>Suportar rotação e revogação</li>
+<li>Separar “conector” (tipo de integração) de “instalação” (config do tenant)</li>
+</ul>
+<p>Dica: Aqui o tenant pode estár em alguma propriedade do proprio token.
+<strong>Exemplo (C# 10): modelo mínimo para token por tenant</strong></p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="kd">public</span> <span class="k">record</span> <span class="nc">TenantOAuthToken</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">string</span> <span class="n">TenantId</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">string</span> <span class="n">Provider</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">string</span> <span class="n">AccessToken</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">DateTimeOffset</span> <span class="n">ExpiresAt</span>
+</span></span><span class="line"><span class="cl"><span class="p">);</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<hr>
+<h3>6) Observabilidade por tenant (não é opcional)<span class="hx:absolute hx:-mt-20" id="6-observabilidade-por-tenant-não-é-opcional"></span>
+    <a href="#6-observabilidade-por-tenant-n%c3%a3o-%c3%a9-opcional" class="subheading-anchor" aria-label="Permalink for this section"></a></h3><p>Sem isso, o suporte vira loteria.</p>
+<ul>
+<li>Logs com <code>tenantId</code>, <code>requestId</code>, <code>traceId</code></li>
+<li>Métricas por tenant (latência, erros, filas)</li>
+<li>Tracing distribuído para seguir uma ação do usuário → API → evento → worker → webhook</li>
+</ul>
+<p><strong>Exemplo (C# 10): log com TenantId</strong></p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-csharp" data-lang="csharp"><span class="line"><span class="cl"><span class="n">logger</span><span class="p">.</span><span class="n">LogInformation</span><span class="p">(</span><span class="s">&#34;tenant={TenantId} request={RequestId}&#34;</span><span class="p">,</span> <span class="n">tenantId</span><span class="p">,</span> <span class="n">ctx</span><span class="p">.</span><span class="n">TraceIdentifier</span><span class="p">);</span></span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<hr>
+<h2>Checklist rápido (para você validar sua arquitetura)<span class="hx:absolute hx:-mt-20" id="checklist-rápido-para-você-validar-sua-arquitetura"></span>
+    <a href="#checklist-r%c3%a1pido-para-voc%c3%aa-validar-sua-arquitetura" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><ul>
+<li><input disabled="" type="checkbox"> Eventos carregam <code>tenantId</code> e <code>correlationId</code></li>
+<li><input disabled="" type="checkbox"> Publicação confiável (Outbox) e consumo idempotente</li>
+<li><input disabled="" type="checkbox"> Webhooks assinados, com retry/backoff e DLQ</li>
+<li><input disabled="" type="checkbox"> Rate limit e quotas por tenant</li>
+<li><input disabled="" type="checkbox"> Tokens/segredos por tenant com KMS e rotação</li>
+<li><input disabled="" type="checkbox"> Logs/métricas/traces com dimensão por tenant
+Se você quiser, eu transformo isso numa sequência de posts (1 por tópico) com um <strong>anti-pattern</strong> por post e exemplos de payload/headers.</li>
+</ul>
+]]></content:encoded><category>saas</category><category>arquitetura</category><category>dotnet</category><category>react</category><category>multitenancy</category><category>keycloak</category><category>observabilidade</category></item><item><title>Agno e agent-ui self-hosted: microserviço de agentes com Postgres e RAG</title><link>https://vinisdl.github.io/2026/02/23/agno-agent-ui-self-hosted-rag/</link><guid isPermaLink="true">https://vinisdl.github.io/2026/02/23/agno-agent-ui-self-hosted-rag/</guid><pubDate>Mon, 23 Feb 2026 12:00:00 GMT</pubDate><description>&lt;p&gt;Quem quer rodar agentes de IA sem depender de UI ou infra gerenciada na nuvem tem uma opção direta: &lt;strong&gt;Agno&lt;/strong&gt; no backend e &lt;strong&gt;agent-ui&lt;/strong&gt; no front, tudo na sua rede. Neste post mostro como montar um microserviço de agentes self-hosted usando PostgreSQL com pgvector para RAG, o que ganha e o que perde com essa escolha. Um exemplo dessa stack em uso é o repositório &lt;a href="https://github.com/vinisdl/agent-orchestrator-mult-tenant"target="_blank" rel="noopener"&gt;agent-orchestrator-mult-tenant&lt;/a&gt;, com AgentOS, agent-ui, Postgres (pgvector), RAG e suporte opcional a multi-tenant.&lt;/p&gt;</description><content:encoded><![CDATA[<p>Quem quer rodar agentes de IA sem depender de UI ou infra gerenciada na nuvem tem uma opção direta: <strong>Agno</strong> no backend e <strong>agent-ui</strong> no front, tudo na sua rede. Neste post mostro como montar um microserviço de agentes self-hosted usando PostgreSQL com pgvector para RAG, o que ganha e o que perde com essa escolha. Um exemplo dessa stack em uso é o repositório <a href="https://github.com/vinisdl/agent-orchestrator-mult-tenant"target="_blank" rel="noopener">agent-orchestrator-mult-tenant</a>, com AgentOS, agent-ui, Postgres (pgvector), RAG e suporte opcional a multi-tenant.</p>
+<h2>O que é Agno e agent-ui<span class="hx:absolute hx:-mt-20" id="o-que-é-agno-e-agent-ui"></span>
+    <a href="#o-que-%c3%a9-agno-e-agent-ui" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><p><strong>Agno</strong> é o framework (Python) que implementa o <strong>AgentOS</strong>: uma API FastAPI que expõe um ou vários agentes. Você registra os agentes em código, configura conexão com banco (por exemplo PostgreSQL) e sobe o serviço onde quiser (localhost, VM ou Docker). Nada disso exige a oferta cloud da Agno.</p>
+<p>O <strong>agent-ui</strong> é o frontend em Next.js feito para falar com essa API. Você instala e roda na sua máquina ou servidor; ele se conecta à <em>sua</em> instância do AgentOS. Ou seja: UI e backend ficam sob seu controle.</p>
+<p>Juntos, AgentOS e agent-ui são uma stack 100% self-hosted: conversar com agentes, persistir histórico e, com Postgres e pgvector, fazer RAG.</p>
+<h2>Arquitetura: AgentOS + agent-ui + PostgreSQL (pgvector)<span class="hx:absolute hx:-mt-20" id="arquitetura-agentos--agent-ui--postgresql-pgvector"></span>
+    <a href="#arquitetura-agentos--agent-ui--postgresql-pgvector" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><p>O desenho é simples: um app de backend (AgentOS), um app de frontend (agent-ui) e um banco. O usuário acessa a UI; a UI chama a API do AgentOS; o AgentOS usa o PostgreSQL para estado e, com a extensão pgvector, para vetores de RAG.</p>
+<pre class="mermaid hx:mt-6">
+  flowchart LR
+  subgraph seu_ambiente [Seu ambiente]
+    UI[agent-ui Next.js :3000]
+    OS[AgentOS FastAPI :8000]
+    DB[(PostgreSQL pgvector)]
+    A1[Agente 1]
+    A2[Agente 2]
+    OS --&gt; A1
+    OS --&gt; A2
+    OS --&gt; DB
+    UI --&gt;|HTTP / API| OS
+  end
+  User[Usuário] --&gt; UI
+</pre><ul>
+<li><strong>AgentOS</strong>: sobe em geral na porta 8000 (<code>fastapi dev</code> ou uvicorn). Código em <code>agent-os/</code> com <code>pyproject.toml</code> (agno[os], anthropic/mcp etc.), módulo <code>db/</code> com <code>get_postgres_db()</code> e variáveis <code>DB_*</code> no <code>.env</code>. O script de entrada instancia <code>AgentOS(agents=[...], db=get_postgres_db())</code> e expõe <code>app = agent_os.get_app()</code>.</li>
+<li><strong>agent-ui</strong>: sobe na porta 3000. Você aponta para o AgentOS via <code>NEXT_PUBLIC_AGENTOS_URL</code> (ex.: <code>http://localhost:8000</code>) ou pela sidebar. Em Docker, em produção você usa a URL pública do AgentOS.</li>
+<li><strong>PostgreSQL com pgvector</strong>: no Docker Compose, um serviço (ex.: <code>agentos-db</code>) com imagem que inclua pgvector. O AgentOS conecta com <code>DB_HOST</code>, <code>DB_PORT</code>, <code>DB_USER</code>, <code>DB_PASS</code>, <code>DB_DATABASE</code>. Os agentes usam o mesmo banco para sessões e, se você configurar, para embeddings e busca vetorial (RAG).</li>
+</ul>
+<p>A comunicação e delegação entre agentes (um chamar o outro, workflows, teams) ficam no código Python do AgentOS. No agent-ui você só escolhe com qual agente conversar e vê as respostas e tool calls.</p>
+<h2>RAG com Postgres e pgvector<span class="hx:absolute hx:-mt-20" id="rag-com-postgres-e-pgvector"></span>
+    <a href="#rag-com-postgres-e-pgvector" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><p>PostgreSQL com a extensão <strong>pgvector</strong> permite guardar embeddings e fazer busca por similaridade. No contexto do AgentOS você pode:</p>
+<ul>
+<li>Persistir embeddings de documentos ou chunks em tabelas com coluna do tipo <code>vector</code>.</li>
+<li>Nos agentes, usar ferramentas ou lógica que consultem esse banco (por exemplo busca por similaridade) e injetem o contexto retornado no prompt.</li>
+</ul>
+<p>Assim você tem RAG sem precisar de um serviço externo de vetores: um único Postgres faz papel de banco relacional e de vetorial. Para POC e para muitos casos de uso internos isso basta.</p>
+<h2>Vantagens<span class="hx:absolute hx:-mt-20" id="vantagens"></span>
+    <a href="#vantagens" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><ul>
+<li><strong>Controle total</strong>: backend e UI na sua infra; dados e tráfego não passam por serviço gerenciado da Agno.</li>
+<li><strong>Stack conhecida</strong>: FastAPI, Next.js, PostgreSQL. Fácil de integrar com o resto do seu ecossistema (auth, logs, métricas).</li>
+<li><strong>Um banco para estado e RAG</strong>: Postgres com pgvector reduz o número de componentes. Menos serviços para operar.</li>
+<li><strong>Multi-agentes na mesma instância</strong>: o agent-ui já lista e permite escolher agente; a orquestração (teams, workflows) você modela no Python.</li>
+<li><strong>Docker e perfis DEV/PROD</strong>: com compose base + overrides (<code>docker-compose.dev.yml</code> e <code>docker-compose.prod.yml</code>) você tem hot-reload em desenvolvimento e build enxuto em produção.</li>
+</ul>
+<h2>Desvantagens<span class="hx:absolute hx:-mt-20" id="desvantagens"></span>
+    <a href="#desvantagens" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><ul>
+<li><strong>Você opera tudo</strong>: backups, atualizações, segurança e escalabilidade do Postgres e dos containers são por sua conta.</li>
+<li><strong>Escala do vetorial</strong>: pgvector funciona bem até um certo volume; para índices enormes ou latência muito baixa, um engine dedicado (ex.: Qdrant, Weaviate) pode ser melhor.</li>
+<li><strong>Lógica multi-agente em código</strong>: delegação e workflows estão no Python, não numa UI de orquestração; mudanças exigem deploy.</li>
+<li><strong>Porta e CORS</strong>: é preciso alinhar a porta do AgentOS (8000 ou 7777) com o que o agent-ui espera e configurar CORS no AgentOS para a origem da UI.</li>
+</ul>
+<h2>Como rodar (resumo)<span class="hx:absolute hx:-mt-20" id="como-rodar-resumo"></span>
+    <a href="#como-rodar-resumo" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><ol>
+<li><strong>Backend</strong>: em <code>agent-os/</code>, venv com <code>agno[os]</code>, script que sobe o AgentOS com pelo menos um agente e <code>db=get_postgres_db()</code>, rodar com <code>fastapi dev</code> na porta desejada.</li>
+<li><strong>Frontend</strong>: em <code>agent-ui/</code>, <code>npx create-agent-ui@latest</code> ou clone do repositório, <code>pnpm install</code>, <code>pnpm dev</code>, e configurar o endpoint do AgentOS.</li>
+<li><strong>Docker</strong>: Dockerfiles para agent-os e agent-ui; compose base com agent-os, agent-ui e PostgreSQL (pgvector); overrides DEV (volumes, hot-reload) e PROD (build otimizado). Variáveis em <code>.env</code> (copiar de <code>.env.example</code>).</li>
+</ol>
+<p><strong>DEV:</strong> <code>docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build</code><br>
+<strong>PROD:</strong> <code>docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build</code></p>
+<p>O agent-ui não substitui o trabalho de definir e evoluir os agentes no código. Ele é a interface self-hosted para conversar com eles. Se a ideia é uma POC de agentes com RAG na sua máquina ou no seu servidor, você pode clonar o <a href="https://github.com/vinisdl/agent-orchestrator-mult-tenant"target="_blank" rel="noopener">agent-orchestrator-mult-tenant</a> e seguir o README para subir tudo com Docker. Agno + agent-ui + Postgres com pgvector é um caminho direto; a ressalva é que operação e escala do vetorial ficam com você.</p>
+]]></content:encoded><category>agno</category><category>agent-ui</category><category>agentes</category><category>rag</category><category>pgvector</category><category>postgresql</category><category>self-hosted</category><category>docker</category></item><item><title>Arquitetura SaaS multi-tenant: um projeto de referência em .NET e React</title><link>https://vinisdl.github.io/2026/02/22/arquitetura-saas-multitenant-referencia/</link><guid isPermaLink="true">https://vinisdl.github.io/2026/02/22/arquitetura-saas-multitenant-referencia/</guid><pubDate>Sun, 22 Feb 2026 02:13:34 GMT</pubDate><description>&lt;p&gt;Montar um SaaS do zero envolve uma porção de decisões que se repetem: como isolar dados por cliente, como fazer auth, como observar o sistema em produção. Fica fácil perder tempo reinventando a roda ou grudando peças que não conversam. Por isso criei um repositório de &lt;strong&gt;arquitetura de referência&lt;/strong&gt; que junta, em um único lugar, as peças que costumam aparecer em um SaaS multi-tenant moderno — e que você pode clonar, adaptar e usar como ponto de partida.&lt;/p&gt;</description><content:encoded><![CDATA[<p>Montar um SaaS do zero envolve uma porção de decisões que se repetem: como isolar dados por cliente, como fazer auth, como observar o sistema em produção. Fica fácil perder tempo reinventando a roda ou grudando peças que não conversam. Por isso criei um repositório de <strong>arquitetura de referência</strong> que junta, em um único lugar, as peças que costumam aparecer em um SaaS multi-tenant moderno — e que você pode clonar, adaptar e usar como ponto de partida.</p>
+<p>Neste post mostro o que esse projeto oferece, as escolhas técnicas e como subir tudo localmente.</p>
+<h2>O que é o SaaS Architecture<span class="hx:absolute hx:-mt-20" id="o-que-é-o-saas-architecture"></span>
+    <a href="#o-que-%c3%a9-o-saas-architecture" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><p>O <a href="https://github.com/vinisdl/saas-architecture"target="_blank" rel="noopener"><strong>SaaS Architecture</strong></a> é um repositório aberto que implementa uma stack completa para aplicações SaaS multi-tenant. O objetivo é servir de <strong>template</strong> e <strong>referência</strong>: em vez de decidir sozinho cada camada, você tem um desenho coerente — backend, frontend, banco, autenticação, filas e observabilidade — pronto para evoluir.</p>
+<p>Principais características:</p>
+<ul>
+<li><strong>Multi-tenancy</strong> com isolamento por tenant (TenantId, contexto por request).</li>
+<li><strong>Autenticação e autorização</strong> via Keycloak (OAuth2/OIDC, JWT).</li>
+<li><strong>Backend</strong> em arquitetura hexagonal + CQRS (MediatR).</li>
+<li><strong>Frontend</strong> SPA em React com roteamento e área administrativa.</li>
+<li><strong>Mensageria</strong> com RabbitMQ para eventos entre serviços.</li>
+<li><strong>Observabilidade</strong> com OpenTelemetry (OTLP) e integração Grafana Cloud / Grafana Alloy.</li>
+</ul>
+<p>Ou seja: não é um &ldquo;hello world&rdquo; — é uma base real para você estender com regras de negócio e domínio.</p>
+<h2>Stack e decisões técnicas<span class="hx:absolute hx:-mt-20" id="stack-e-decisões-técnicas"></span>
+    <a href="#stack-e-decis%c3%b5es-t%c3%a9cnicas" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><p>A tabela abaixo resume a stack; em seguida comento o porquê das escolhas.</p>
+<table>
+  <thead>
+      <tr>
+          <th>Camada</th>
+          <th>Tecnologia</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Banco de dados</td>
+          <td>PostgreSQL 16</td>
+      </tr>
+      <tr>
+          <td>Backend</td>
+          <td>C# 14 (.NET 10), ASP.NET Core</td>
+      </tr>
+      <tr>
+          <td>Frontend</td>
+          <td>React 19, Vite 7</td>
+      </tr>
+      <tr>
+          <td>Autenticação</td>
+          <td>Keycloak (OIDC/JWT)</td>
+      </tr>
+      <tr>
+          <td>Mensageria</td>
+          <td>RabbitMQ</td>
+      </tr>
+      <tr>
+          <td>Observabilidade</td>
+          <td>OpenTelemetry, Grafana Alloy</td>
+      </tr>
+      <tr>
+          <td>Infraestrutura</td>
+          <td>Docker, Docker Compose</td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>Backend em .NET 10</strong> — Ecossistema maduro, performance e tipagem forte (C# 14). A combinação hexagonal + CQRS com MediatR mantém o domínio isolado e os use cases explícitos, o que escala bem quando o produto cresce.</p>
+<p><strong>React 19 + Vite 7</strong> — Frontend enxuto e rápido. Vite entrega HMR e build otimizado; React 19 traz melhorias recentes de runtime e DX. O front consome a API e pode enviar telemetria (traces) via proxy para o backend, que encaminha ao Alloy.</p>
+<p><strong>Keycloak</strong> — Auth e identidade sem depender de serviço proprietário. OIDC/JWT é padrão de mercado; você pode trocar por outro IdP depois se quiser, mantendo o mesmo contrato (tokens JWT).</p>
+<p><strong>RabbitMQ</strong> — Filas para eventos assíncronos entre serviços (ex.: notificações, integrações). Desacopla processos e permite escalar consumidores independentemente.</p>
+<p><strong>OpenTelemetry + Grafana Alloy</strong> — Telemetria padronizada (traces, métricas, logs). O Alloy recebe OTLP do backend (e opcionalmente do front via proxy) e pode enviar para Grafana Cloud ou qualquer backend compatível. Você ganha visibilidade desde o primeiro dia.</p>
+<h2>Arquitetura na prática<span class="hx:absolute hx:-mt-20" id="arquitetura-na-prática"></span>
+    <a href="#arquitetura-na-pr%c3%a1tica" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><p><img src="https://mermaid.ink/img/Zmxvd2NoYXJ0IFRCCiAgc3ViZ3JhcGggdXN1YXJpbyBbVXN1w6FyaW9dCiAgICBCcm93c2VyW05hdmVnYWRvcl0KICBlbmQKICBzdWJncmFwaCBhcGxpY2FjYW8gW0FwbGljYcOnw6NvXQogICAgRnJvbnRlbmRbRnJvbnRlbmQgUmVhY3RdCiAgICBCYWNrZW5kW0JhY2tlbmQgLk5FVCBBUEldCiAgZW5kCiAgc3ViZ3JhcGggZGFkb3MgW0RhZG9zIGUgQXV0aF0KICAgIFBvc3RncmVzWyhQb3N0Z3JlU1FMKV0KICAgIEtleWNsb2FrW0tleWNsb2FrXQogIGVuZAogIHN1YmdyYXBoIG1lbnNhZ2VyaWEgW01lbnNhZ2VyaWFdCiAgICBSYWJiaXRNUVtSYWJiaXRNUV0KICBlbmQKICBzdWJncmFwaCBvYnNlcnZhYmlsaWRhZGUgW09ic2VydmFiaWxpZGFkZV0KICAgIEFsbG95W0dyYWZhbmEgQWxsb3ldCiAgZW5kCiAgc3ViZ3JhcGggY2xvdWQgW0dyYWZhbmEgQ2xvdWRdCiAgICBUZW1wb1tUcmFjZXNdCiAgICBNaW1pcltNZXRyaWNzXQogIGVuZAogIEJyb3dzZXIgLS0-IEZyb250ZW5kCiAgRnJvbnRlbmQgLS0-fEhUVFAgLyBBUEl8IEJhY2tlbmQKICBGcm9udGVuZCAtLT58T1RMUCBwcm94eXwgQmFja2VuZAogIEJhY2tlbmQgLS0-IFBvc3RncmVzCiAgQmFja2VuZCAtLT4gS2V5Y2xvYWsKICBCYWNrZW5kIC0tPiBSYWJiaXRNUQogIEJhY2tlbmQgLS0-fE9UTFAgZ1JQQ3wgQWxsb3kKICBCYWNrZW5kIC0tPnxPVExQIEhUVFAgcHJveHl8IEFsbG95CiAgQWxsb3kgLS0-IFRlbXBvCiAgQWxsb3kgLS0-IE1pbWly" alt="Diagrama da arquitetura: navegador, frontend React, backend .NET, PostgreSQL, Keycloak, RabbitMQ, Grafana Alloy e Grafana Cloud"  loading="lazy" /></p>
+<p>O fluxo geral é: usuário acessa o frontend; o front chama a API e, se configurado, envia traces para o backend (proxy), que repassa ao Alloy. O backend fala com PostgreSQL, Keycloak (validação de token) e RabbitMQ, e envia telemetria direto ao Alloy; o Alloy encaminha para Grafana Cloud (Traces, Métricas) conforme a configuração.</p>
+<p>Pontos que valem destacar:</p>
+<ul>
+<li><strong>Multi-tenancy</strong> — O TenantId entra no contexto da request (middleware/claims). As queries e regras de negócio usam esse contexto para isolar dados por tenant. Não é &ldquo;um DB por cliente&rdquo;, e sim um modelo de tenant compartilhado com isolamento lógico, que é o mais comum em SaaS.</li>
+<li><strong>Auth</strong> — Keycloak emite os JWTs; o backend valida e extrai claims (incluindo tenant quando aplicável). O front usa um client OIDC para login e envia o token nas chamadas à API.</li>
+<li><strong>Observabilidade</strong> — Tudo passa por OTLP (gRPC ou HTTP). Quem quiser só testar localmente pode subir o Alloy sem Grafana Cloud; quem quiser produção pode configurar as variáveis do Alloy para enviar para a nuvem.</li>
+</ul>
+<p>A documentação do repositório traz diagramas (incluindo flowchart da arquitetura), configuração do Keycloak e passos para Grafana Cloud.</p>
+<h2>Como rodar<span class="hx:absolute hx:-mt-20" id="como-rodar"></span>
+    <a href="#como-rodar" class="subheading-anchor" aria-label="Permalink for this section"></a></h2><p>Pré-requisitos: Docker e Docker Compose. Opcional: .NET 10 SDK e Node.js LTS se quiser rodar backend ou frontend fora do Docker.</p>
+<p><strong>Produção (stack completa):</strong></p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">git clone https://github.com/vinisdl/saas-architecture.git
+</span></span><span class="line"><span class="cl"><span class="nb">cd</span> saas-architecture
+</span></span><span class="line"><span class="cl">docker compose -f docker-compose.prd.yml up -d</span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<p><strong>Desenvolvimento (hot reload no backend e frontend):</strong></p>
+<div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code">
+
+<div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">docker compose -f docker-compose.dev.yml up --build</span></span></code></pre></div></div><div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0">
+  <button
+    class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+    title="Copy code"
+  >
+    <div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"></div>
+<div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"></div>
+  </button>
+</div>
+</div>
+<p>Alterações em C# disparam recompilação e reinício do backend; alterações no front disparam HMR sem full reload.</p>
+<p>Após subir, você tem:</p>
+<table>
+  <thead>
+      <tr>
+          <th>Serviço</th>
+          <th>URL</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>Frontend</td>
+          <td>http://localhost:3000</td>
+      </tr>
+      <tr>
+          <td>API</td>
+          <td>http://localhost:5000</td>
+      </tr>
+      <tr>
+          <td>Keycloak</td>
+          <td>http://localhost:8080</td>
+      </tr>
+      <tr>
+          <td>RabbitMQ</td>
+          <td>http://localhost:15672</td>
+      </tr>
+      <tr>
+          <td>Alloy (OTLP)</td>
+          <td>portas 4317 (gRPC), 4318 (HTTP)</td>
+      </tr>
+  </tbody>
+</table>
+<p>Para enviar telemetria ao Grafana Cloud, basta configurar as variáveis do Alloy conforme a documentação em <code>docs/</code>.</p>
+<p>O <a href="https://github.com/vinisdl/saas-architecture"target="_blank" rel="noopener">SaaS Architecture</a> junta, em um único repo, as peças que a maioria dos times acaba montando ao longo do tempo: multi-tenancy, auth com Keycloak, backend estruturado em .NET 10, frontend em React, filas com RabbitMQ e observabilidade com OpenTelemetry e Grafana. Serve tanto como <strong>referência</strong> para estudar decisões quanto como <strong>base</strong> para um novo produto.</p>
+<p>Se você está pensando em montar um SaaS ou quer um exemplo &ldquo;de verdade&rdquo; para comparar com o que está fazendo, vale dar uma olhada — e se fizer sentido, dar uma estrela no repo ou abrir uma issue com sugestões. Para mais conteúdo sobre arquitetura e desenvolvimento, acompanhe o blog e o <a href="https://www.linkedin.com/in/vinisdl/"target="_blank" rel="noopener">LinkedIn</a>.</p>
+]]></content:encoded><category>saas</category><category>arquitetura</category><category>dotnet</category><category>react</category><category>multitenancy</category><category>keycloak</category><category>observabilidade</category></item><item><title>About</title><link>https://vinisdl.github.io/about/</link><guid isPermaLink="true">https://vinisdl.github.io/about/</guid><pubDate>Mon, 01 Jan 0001 00:00:00 GMT</pubDate><description>&lt;p&gt;Sou &lt;strong&gt;Marco Dall&amp;rsquo;Alba&lt;/strong&gt;, Arquiteto Consultor.&lt;/p&gt;
+&lt;p&gt;Este é meu blog. Aqui compartilho artigos sobre arquitetura, tecnologia e temas relacionados ao meu trabalho.&lt;/p&gt;</description><content:encoded><![CDATA[<p>Sou <strong>Marco Dall&rsquo;Alba</strong>, Arquiteto Consultor.</p>
+<p>Este é meu blog. Aqui compartilho artigos sobre arquitetura, tecnologia e temas relacionados ao meu trabalho.</p>
+]]></content:encoded></item></channel></rss>

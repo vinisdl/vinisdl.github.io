@@ -2,9 +2,15 @@
 title: "Padrões modernos em SaaS multi-tenant"
 date: 2026-02-24T14:29:42-0300
 draft: false
-description: "Descrição do post aqui"
-tags: []
-categories: []
+description: "Padrões modernos para SaaS multi-tenant: eventos, APIs e integrações (sem perder isolamento)"
+tags:
+  - saas
+  - arquitetura
+  - dotnet
+  - react
+  - multitenancy
+  - keycloak
+  - observabilidade
 ---
 
 ## Padrões modernos para SaaS multi-tenant: eventos, APIs e integrações (sem perder isolamento)

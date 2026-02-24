@@ -30,9 +30,6 @@ jobs:
           ruby-version: '3.3'
           bundler-cache: false
 
-      - name: Generate index
-        run: ruby scripts/generate_index.rb
-
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
